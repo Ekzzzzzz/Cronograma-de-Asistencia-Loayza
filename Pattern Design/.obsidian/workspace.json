@@ -1,0 +1,227 @@
+{
+  "main": {
+    "id": "2382753f6d781a1f",
+    "type": "split",
+    "children": [
+      {
+        "id": "7373a13f513e3ee0",
+        "type": "tabs",
+        "children": [
+          {
+            "id": "22264524713ef30b",
+            "type": "leaf",
+            "state": {
+              "type": "markdown",
+              "state": {
+                "file": "wiki/decisiones/decisiones-moc.md",
+                "mode": "source",
+                "source": false
+              },
+              "icon": "lucide-file",
+              "title": "decisiones-moc"
+            }
+          }
+        ]
+      }
+    ],
+    "direction": "vertical"
+  },
+  "left": {
+    "id": "6d9cf1bcb3643522",
+    "type": "split",
+    "children": [
+      {
+        "id": "378214a10e7195f0",
+        "type": "tabs",
+        "children": [
+          {
+            "id": "fb27082f5ab429da",
+            "type": "leaf",
+            "state": {
+              "type": "file-explorer",
+              "state": {
+                "sortOrder": "alphabetical",
+                "autoReveal": false,
+                "showSearch": false,
+                "searchQuery": ""
+              },
+              "icon": "lucide-folder-closed",
+              "title": "Explorador de archivos"
+            }
+          },
+          {
+            "id": "3bd9d3761bae2573",
+            "type": "leaf",
+            "state": {
+              "type": "search",
+              "state": {
+                "query": "",
+                "matchingCase": false,
+                "explainSearch": false,
+                "collapseAll": false,
+                "extraContext": false,
+                "sortOrder": "alphabetical"
+              },
+              "icon": "lucide-search",
+              "title": "Buscar"
+            }
+          },
+          {
+            "id": "ab5285ed690901d2",
+            "type": "leaf",
+            "state": {
+              "type": "bookmarks",
+              "state": {
+                "showSearch": false,
+                "searchQuery": ""
+              },
+              "icon": "lucide-bookmark",
+              "title": "Marcadores"
+            }
+          }
+        ]
+      }
+    ],
+    "direction": "horizontal",
+    "width": 254.5
+  },
+  "right": {
+    "id": "a9ee371ad6a3292d",
+    "type": "split",
+    "children": [
+      {
+        "id": "098a38ca6d52aa0e",
+        "type": "tabs",
+        "children": [
+          {
+            "id": "43af066ec992e315",
+            "type": "leaf",
+            "state": {
+              "type": "backlink",
+              "state": {
+                "file": "wiki/decisiones/decisiones-moc.md",
+                "collapseAll": false,
+                "extraContext": false,
+                "sortOrder": "alphabetical",
+                "showSearch": false,
+                "searchQuery": "",
+                "backlinkCollapsed": false,
+                "unlinkedCollapsed": true
+              },
+              "icon": "links-coming-in",
+              "title": "Enlaces entrantes"
+            }
+          },
+          {
+            "id": "466923cf5d4e81fa",
+            "type": "leaf",
+            "state": {
+              "type": "outgoing-link",
+              "state": {
+                "linksCollapsed": false,
+                "unlinkedCollapsed": true
+              },
+              "icon": "links-going-out",
+              "title": "Enlaces salientes"
+            }
+          },
+          {
+            "id": "9121abc5f119657d",
+            "type": "leaf",
+            "state": {
+              "type": "tag",
+              "state": {
+                "sortOrder": "frequency",
+                "useHierarchy": true,
+                "showSearch": false,
+                "searchQuery": ""
+              },
+              "icon": "lucide-tags",
+              "title": "Etiquetas"
+            }
+          },
+          {
+            "id": "bd958693b4e88e28",
+            "type": "leaf",
+            "state": {
+              "type": "all-properties",
+              "state": {
+                "sortOrder": "frequency",
+                "showSearch": false,
+                "searchQuery": ""
+              },
+              "icon": "lucide-archive",
+              "title": "Todas las propiedades"
+            }
+          },
+          {
+            "id": "6878bc1da0aa97b1",
+            "type": "leaf",
+            "state": {
+              "type": "outline",
+              "state": {
+                "followCursor": false,
+                "showSearch": false,
+                "searchQuery": ""
+              },
+              "icon": "lucide-list",
+              "title": "Esquema"
+            }
+          }
+        ]
+      }
+    ],
+    "direction": "horizontal",
+    "width": 300,
+    "collapsed": true
+  },
+  "left-ribbon": {
+    "hiddenItems": {
+      "switcher:Abrir selector rápido": false,
+      "graph:Abrir vista gráfica": false,
+      "canvas:Crear nuevo lienzo": false,
+      "daily-notes:Abrir la nota de hoy": false,
+      "templates:Insertar plantilla": false,
+      "command-palette:Abrir paleta de comandos": false,
+      "bases:Crear nueva base": false
+    }
+  },
+  "active": "22264524713ef30b",
+  "lastOpenFiles": [
+    "wiki/dominio/jornadas-multiples.md",
+    "wiki/decisiones/adr-006-acceso-sin-sesion.md",
+    "wiki/decisiones/adr-006-acceso-sin-sesion.md.tmp.15996.463cca4dd734",
+    "wiki/decisiones/adr-001-stack-y-arquitectura.md",
+    "wiki/dominio/antifraude.md",
+    "wiki/patrones/patron-composite.md",
+    "wiki/conceptos/antipatrones.md",
+    "wiki/fuentes/fuente-s14-antipatrones.md",
+    "Archivos_de_clase/Diseño-Poster.pdf",
+    "Archivos_de_clase/CASO DE EJEMPLO 2.pdf",
+    "Archivos_de_clase/Cartel-Indicaciones.pdf",
+    "Archivos_de_clase/S15_s1s2 - PC-3-DPA.pdf",
+    "wiki/dominio/formato-cronograma-actual.md",
+    "wiki/decisiones/adr-005-interfaz-de-marcacion.md",
+    "wiki/decisiones/adr-004-llenado-del-cronograma.md",
+    "wiki/decisiones/adr-003-autenticacion-jwt.md",
+    "wiki/decisiones/adr-002-canal-de-marcacion.md",
+    "wiki/fuentes/fuente-pc2-pc3-entregables.md",
+    "tools/extraer_pdf.py",
+    "tools/extraer_pdf.py.tmp.15996.0967813ace61",
+    "wiki/consultas/consultas-moc.md",
+    "wiki/fuentes/fuente-s07-factory-builder.md",
+    "wiki/fuentes/fuente-s06-singleton-prototype.md",
+    "wiki/sintesis.md",
+    "wiki/overview.md",
+    "adr-002-ingesta-whatsapp.md",
+    "wiki/dominio/dominio-moc.md",
+    "wiki/conceptos/conceptos-moc.md",
+    "CLAUDE.md",
+    "index.md",
+    "wiki/patrones/patron-observer.md",
+    "Bienvenido.md",
+    "Archivos_de_clase/S10_s1s2 - PC-2-DPA.pdf",
+    "Archivos_de_clase/S1_s1 - Material diseño.pptx",
+    "Archivos_de_clase/S2_s1 - Material diseño3.pptx"
+  ]
+}
