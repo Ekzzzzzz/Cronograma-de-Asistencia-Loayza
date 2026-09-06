@@ -1,48 +1,63 @@
 ---
-tipo: moc
-titulo: Overview
-creado: 2026-09-04
-actualizado: 2026-09-04
-estado: activo
+titulo: Visión general del proyecto
+tipo: sintesis
+estado: borrador
+fuentes:
+  - brief del usuario (2026-09-05)
+actualizado: 2026-09-05
+tags: [raiz, proyecto]
 ---
 
-# Overview
+# Visión general del proyecto
 
-Punto de entrada de la bóveda. Si no sabes por dónde empezar, empieza aquí.
+Página raíz del wiki. Si llegas nuevo, empieza aquí y sigue los enlaces.
 
-## Para qué existe esto
+## El problema
 
-Dos cosas a la vez:
+Una cadena de podología con **7 sedes** en Lima (ver [[sedes]]) controla la asistencia de
+sus podólogas a mano. El control real que hoy existe es un Excel mensual por sede con el
+horario efectivo de cada trabajadora (ver [[formato-cronograma-excel]]): alguien lo llena
+observando, y eso no escala ni es verificable.
 
-1. **Consolidar el curso de patrones de diseño.** Las diapositivas, guías y ejemplos viven
-   en `Archivos_de_clase/`. Cada vez que se ingiere una, su contenido se destila en páginas
-   de [[patrones-moc|patrón]] y [[conceptos-moc|concepto]] que se van enriqueciendo.
-2. **Construir un programa Java que resuelva un problema real**: los cronogramas diarios de
-   Podología Loayza. Ver [[problema-cronogramas]].
+Dos rasgos del negocio hacen que la solución obvia no sirva:
 
-Lo que une ambas mitades: **cada página de patrón tiene una sección obligatoria
-«Aplicación en Podología Loayza»**. El curso deja de ser teoría suelta y se convierte en un
-catálogo de herramientas evaluadas contra un problema concreto.
+1. **Una trabajadora rota entre sedes el mismo día.** No hay "una entrada y una salida por
+   día": hay N marcaciones por día, cada una atada a una sede distinta.
+2. **Las usuarias no son técnicas.** Podólogas mayores de 30 años con poca familiaridad con
+   aplicaciones. Cualquier fricción de interfaz se traduce en marcaciones no registradas.
 
-## Cómo navegar
+## La solución que se va a construir
 
-| Si buscas… | Ve a |
-|---|---|
-| El catálogo completo de páginas | [[index]] |
-| Qué pasó y cuándo | [[log]] |
-| El estado actual del diseño del programa | [[sintesis]] |
-| El problema de negocio | [[problema-cronogramas]] |
-| Un patrón concreto | [[patrones-moc]] |
-| Por qué se eligió tal patrón | [[decisiones-moc]] |
-| El resumen de una clase | [[fuentes-moc]] |
+Aplicación web en **Spring Boot** con dos caras:
 
-## Cómo trabajar con el agente
+- **Cara trabajadora**: un enlace único, sin login, con un flujo de cinco pasos —
+  nombre → sede → entrada/salida → foto con fecha y hora impresas → notas → enviar.
+- **Cara administradora**: dashboard con **una pestaña por sede** y exportación a Excel en
+  el formato que la empresa ya usa.
 
-- **«Ingiere S06»** → lee la fuente, la resume y propaga los cambios por la wiki.
-- **«¿Qué patrón conviene para X?»** → responde citando la wiki; si vale la pena, archiva
-  la respuesta en [[consultas-moc|consultas]].
-- **«Decidamos cómo leer las fotos»** → escribe un ADR en [[decisiones-moc|decisiones]].
-- **«Impleméntalo»** → escribe código en `src/`, sólo si ya hay un ADR aceptado.
-- **«Revisa la wiki»** → pasada de lint: contradicciones, huérfanas, huecos.
+Detalle de requisitos numerados en [[requisitos]].
 
-Las reglas completas están en `CLAUDE.md`.
+## El objetivo
+
+**Código limpio aplicando los patrones del curso que encajen con el problema.** No usar
+todos, ni maximizar la cuenta: usar los que dejan el código mejor de lo que estaría sin
+ellos.
+
+De los quince patrones que enseña el curso, **se implementan siete**
+([[adr-001-patrones-seleccionados]]): Decorator, Composite, Factory, Facade, Proxy,
+Singleton y State. Los descartes se documentan con su razón, que es material para el
+capítulo de antipatrones que exige [[pc3-entregable]].
+
+El mapa completo, con el veredicto de cada patrón, está en [[mapa-patron-requisito]].
+
+## Estado
+
+Wiki recién inicializado. Ninguna fuente del curso ha sido ingerida todavía y el material
+en PDF está bloqueado por el entorno. Ver [[huecos-abiertos]].
+
+## Por dónde seguir
+
+- [[requisitos]] — qué tiene que hacer el sistema.
+- [[sedes]] — las 7 sedes y sus datos.
+- [[formato-cronograma-excel]] — el formato de salida que hay que reproducir.
+- [[huecos-abiertos]] — qué falta decidir y qué está bloqueado.

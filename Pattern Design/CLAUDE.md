@@ -1,302 +1,233 @@
-# CLAUDE.md — Agente mantenedor de esta bóveda
+# CLAUDE.md — Esquema del wiki
 
-Este archivo es la **definición del agente**. Léelo completo al inicio de cada sesión antes
-de tocar cualquier archivo. Contiene las reglas, la estructura y los flujos de trabajo.
+Este archivo es el **contrato de trabajo**. Léelo entero al inicio de cada sesión antes de
+tocar cualquier archivo del wiki.
 
----
+## 1. Para qué existe este repositorio
 
-## 1. Qué es esta bóveda
+Tiene dos objetivos encadenados:
 
-Una wiki personal construida y mantenida **por el LLM**, con dos objetivos que convergen:
+1. **Construir un wiki** (`wiki/`) que destile el material del curso de Diseño de Patrones
+   y los requisitos del cliente en páginas interconectadas y siempre vigentes.
+2. **Usar ese wiki para construir el software**: una aplicación web en **Spring Boot** de
+   registro de asistencia para una cadena de podología con 7 sedes en Lima.
 
-1. **Aprender y consolidar los patrones de diseño** del curso (fuentes en `Archivos_de_clase/`).
-2. **Diseñar y construir un sistema real**: control de asistencia antifraude para las 7
-   sedes de **Podología Loayza** — las trabajadoras marcan desde una PWA con la cámara del
-   celular, y el sistema consolida solo el cronograma semanal por sede.
-
-La wiki es el puente entre ambos: cada patrón estudiado se evalúa explícitamente contra el
-problema real, y cada decisión de arquitectura queda registrada y justificada con citas a
-las fuentes del curso.
-
-**División de trabajo:** el usuario aporta fuentes, contexto del negocio y preguntas.
-El agente escribe y mantiene *toda* la wiki (resúmenes, referencias cruzadas, índice, log).
-El usuario no edita las páginas de `wiki/` a mano.
-
----
+El wiki no es documentación del código: es lo que **precede** al código. Cada patrón que se
+implemente debe primero tener su página, su justificación y su enlace a un requisito real.
+Si un patrón no resuelve un problema concreto del dominio, no entra al software.
 
 ## 2. Las tres capas
 
 | Capa | Ubicación | Quién escribe | Regla |
 |---|---|---|---|
-| **Fuentes crudas** | `Archivos_de_clase/`, `docs/` (muestras del negocio), `wiki/assets/` | El usuario | **Inmutables.** El agente lee; nunca modifica, renombra ni borra. |
-| **La wiki** | `wiki/`, `index.md`, `log.md` | El agente | El agente es dueño absoluto de esta capa. |
-| **El esquema** | `CLAUDE.md` (este archivo) | Ambos | Se co-evoluciona. Si aparece una convención mejor, se propone y se actualiza aquí. |
+| Fuentes crudas | `Archivos_de_clase/`, `docs/` | El usuario | **Inmutables.** Nunca las edites, muevas ni renombres. |
+| Wiki | `wiki/` | Claude | Claude tiene propiedad total. El usuario lee y dirige. |
+| Esquema | `CLAUDE.md` (este archivo) | Ambos | Se co-evoluciona cuando una convención deja de servir. |
+| Herramientas | `tools/` | Ambos | Scripts de apoyo. Ver §7. |
 
-El código Java en `src/` es la **salida** del proceso, no parte de la wiki: se implementa
-sólo cuando la decisión correspondiente ya existe en `wiki/decisiones/`.
+Las fuentes nuevas se depositan en `Archivos_de_clase/` (material de curso) o en `docs/`
+(material del cliente: Excel, fotos, capturas). No se crea otra carpeta de fuentes.
 
----
-
-## 3. Estructura de carpetas
+## 3. Estructura del wiki
 
 ```
-Pattern Design/
-├── CLAUDE.md              # este archivo: reglas del agente
-├── index.md               # catálogo de TODO lo que existe en la wiki (orientado a contenido)
-├── log.md                 # bitácora cronológica append-only (orientada al tiempo)
-├── Archivos_de_clase/     # FUENTES CRUDAS — sólo lectura
-├── wiki/
-│   ├── overview.md        # punto de entrada / mapa de contenido
-│   ├── sintesis.md        # tesis viva: cómo se resuelve el problema hoy
-│   ├── patrones/          # una página por patrón (singleton, observer, ...)
-│   ├── conceptos/         # SOLID, UML, cohesión, antipatrones, MVC, ...
-│   ├── fuentes/           # un resumen por archivo ingerido de Archivos_de_clase
-│   ├── dominio/           # Podología Loayza: sedes, trabajadoras, marcaciones, reglas
-│   ├── decisiones/        # ADRs: qué patrón se usa dónde y por qué
-│   ├── consultas/         # respuestas archivadas a preguntas del usuario
-│   └── assets/            # imágenes de ejemplo (marcaciones, capturas)
-├── tools/                 # utilidades CLI (extracción de texto, etc.)
-├── src/                   # el programa Java
-└── docs/                  # entregables (diagramas, informe) y muestras que aporta el
-                           # usuario sobre el proceso actual — éstas son INMUTABLES
+wiki/
+├── index.md            Catálogo de todo el wiki. Orientado a CONTENIDO.
+├── log.md              Bitácora append-only. Orientada al TIEMPO.
+├── overview.md         Página raíz: el proyecto en una plana.
+├── fuentes/            Una página por fuente ingerida. Espejo de Archivos_de_clase/ y docs/.
+├── patrones/           Una página por patrón de diseño (singleton, factory, observer...).
+├── dominio/            Entidades del problema real (sede, podóloga, marcación, evidencia...).
+├── arquitectura/       Cómo se construye: capas, stack, modelo de datos, endpoints.
+├── decisiones/         Decisiones tomadas y por qué. Formato ADR ligero.
+└── sintesis/           Páginas transversales: mapas patrón→requisito, tesis en evolución.
 ```
 
-Las muestras del negocio que el usuario deja en `docs/` (p. ej. un cronograma real) se
-tratan como fuente cruda: se analizan y se derivan páginas en `wiki/dominio/`, pero el
-archivo original no se toca.
+Nombres de archivo en **kebab-case y sin tildes** (`marcacion-multiple.md`, no
+`Marcación Múltiple.md`). El título con tildes va dentro, en el frontmatter y el `#` H1.
 
----
+## 4. Formato de página
 
-## 4. Convenciones de páginas
-
-### Nombres de archivo
-- `kebab-case`, en español, sin acentos ni eñes: `patron-singleton.md`,
-  `sede-los-olivos.md`, `reconocimiento-facial.md`.
-- El nombre del archivo es el destino de los `[[enlaces]]`. Nunca renombrar sin actualizar
-  todos los enlaces entrantes.
-
-### Frontmatter obligatorio (habilita Dataview)
+Toda página del wiki empieza con frontmatter YAML:
 
 ```yaml
 ---
-tipo: patron | concepto | fuente | dominio | decision | consulta | moc
 titulo: Patrón Singleton
-tags: [creacional, patron]
-creado: 2026-09-04
-actualizado: 2026-09-04
-estado: borrador | activo | obsoleto
-fuentes: ["[[fuente-s06-creacionales-singleton-prototype]]"]
+tipo: patron          # fuente | patron | dominio | arquitectura | decision | sintesis
+estado: borrador      # borrador | estable | obsoleto
+fuentes:              # rutas relativas a las fuentes crudas que respaldan la página
+  - Archivos_de_clase/S06_s1-Patrones-Creacionales-SP_DPA.pptx
+actualizado: 2026-09-05
+tags: [creacional, gof]
 ---
 ```
 
-Campos extra según el tipo:
-- `tipo: patron` → `categoria: creacional | estructural | comportamiento`,
-  `uso_proyecto: si | no | candidato`
-- `tipo: fuente` → `archivo: "Archivos_de_clase/S06_s1-....pptx"`, `sesion: 6`
-- `tipo: decision` → `numero: 001`, `estado_adr: propuesta | aceptada | reemplazada`,
-  más `reemplaza:` / `reemplazada_por:` cuando corresponda.
+Reglas de cuerpo:
 
-### Enlaces
-- Enlazar **generosamente** con `[[wikilinks]]`. Un enlace a una página que aún no existe
-  es válido y deseable: marca un hueco por llenar, no un error.
-- Toda página debe tener al menos un enlace entrante desde `index.md` y, cuando aplique,
-  desde una página temática. Las huérfanas son un defecto que detecta el lint.
+- **Enlaza con generosidad.** `[[nombre-archivo]]` sin extensión. Un enlace a una página que
+  todavía no existe es válido y deseable: marca trabajo pendiente, no es un error.
+- **Cita siempre la fuente.** Toda afirmación no trivial lleva su origen entre paréntesis:
+  `(S06 pptx, diapositiva 12)` o `(brief del usuario, 2026-09-05)`.
+- **Separa lo comprobado de lo inferido.** Lo que deduces va marcado explícitamente:
+  `> **Inferencia:** ...`. Lo que no sabes va como `> **Hueco:** ...`.
+- **Registra las contradicciones, no las resuelvas en silencio.** Si una fuente nueva choca
+  con una página existente, añade una sección `## Tensiones` con ambas versiones y su fuente.
+- **Español.** Todo el wiki se escribe en español, como el material de origen.
+- Páginas cortas y muchas, antes que pocas y largas. Si una página pasa de ~200 líneas,
+  parte los subtemas en páginas propias y enlázalas.
 
-### Citas
-- **Toda afirmación tomada de una fuente lleva cita** al final de la frase o del bloque:
-  `([[fuente-s09-decorator-composite]], diapositiva 12)`.
-- Si lo aportó el usuario en conversación y no está en ninguna fuente:
-  `(aporte del usuario, 2026-09-04)`.
-- Si es inferencia o propuesta del agente: `(propuesta del agente)`.
-  **Nunca presentar una propuesta propia como si viniera del curso.**
+## 5. Operaciones
 
-### Plantilla de página de patrón
-Secciones fijas de `wiki/patrones/patron-*.md`:
+### Ingesta
 
-```markdown
-## Definición
-## Problema que resuelve
-## Estructura
-(diagrama mermaid `classDiagram` + lista de participantes)
-## Ejemplo del curso
-(código Java tal como aparece en la fuente, con cita)
-## Aplicación en Podología Loayza
-(la sección más importante: dónde encaja, o por qué NO encaja en este proyecto)
-## Patrones relacionados
-## Errores comunes / antipatrón asociado
-## Fuentes
+Cuando el usuario señale una fuente nueva (o una ya presente sin ingerir):
+
+1. Extrae su texto (§7). Léelo completo antes de escribir nada.
+2. Comenta con el usuario los 3–5 puntos clave. **Espera su reacción** antes de escribir si
+   la fuente es densa o ambigua; si es rutinaria, procede y reporta.
+3. Crea `wiki/fuentes/<slug>.md`: qué es, qué aporta, qué patrones toca y en qué se conecta
+   con el proyecto. Enlaza a las páginas afectadas.
+4. **Propaga.** Actualiza las páginas de `patrones/`, `dominio/` y `sintesis/` que esa
+   fuente refuerza, matiza o contradice. Una fuente buena toca varias páginas: si solo
+   tocaste una, probablemente no propagaste lo suficiente.
+5. Actualiza `index.md` y añade una entrada a `log.md`.
+
+Ingiere **una fuente a la vez** salvo que el usuario pida lote explícitamente.
+
+### Consulta
+
+1. Lee `index.md` primero, luego baja a las páginas relevantes.
+2. Responde citando páginas del wiki (`[[pagina]]`) y fuentes crudas.
+3. **Si la respuesta tiene valor duradero, archívala como página nueva** (normalmente en
+   `sintesis/` o `decisiones/`) en lugar de dejarla morir en el chat. Pregunta al usuario si
+   no está claro que valga la pena.
+
+### Lint
+
+Cuando el usuario lo pida, revisa el wiki y reporta:
+
+- Contradicciones entre páginas y afirmaciones que una fuente nueva volvió obsoletas.
+- Páginas huérfanas (sin enlaces entrantes) y enlaces `[[...]]` a páginas inexistentes que
+  ya merecen escribirse.
+- Fuentes en `Archivos_de_clase/` o `docs/` que aún no tienen página en `fuentes/`.
+- Patrones documentados que no están enlazados a ningún requisito real (candidatos a
+  descartar) y requisitos sin patrón asignado (huecos de diseño).
+- Frontmatter incompleto o `actualizado` desfasado respecto al contenido.
+
+Reporta primero, corrige después de que el usuario decida.
+
+## 6. index.md y log.md
+
+- **`index.md`** es el catálogo por contenido: cada página con su enlace y una línea de
+  resumen, agrupada por carpeta. Se actualiza en **toda** ingesta y con **toda** página
+  nueva. Es lo primero que se lee al responder una consulta.
+- **`log.md`** es cronológico y **append-only**: nunca se reescriben entradas pasadas. Cada
+  entrada abre con el prefijo exacto:
+
+  ```
+  ## [AAAA-MM-DD] <operacion> | <titulo>
+  ```
+
+  donde `<operacion>` es `ingesta`, `consulta`, `lint`, `decision` o `scaffold`. El prefijo
+  fijo permite `grep "^## \[" wiki/log.md | tail -5` para ver lo último que pasó.
+
+## 7. Herramientas y limitaciones del entorno
+
+Estado verificado el 2026-09-05 en esta máquina, **después** de que el usuario instalara el
+toolchain:
+
+| Herramienta | Estado | Ruta / versión |
+|---|---|---|
+| Python | ✅ 3.14.7 | `C:\Python314\python.exe` |
+| Java / javac | ✅ 26.0.2.1 | `C:\Program Files\Common Files\Oracle\Java\javapath` |
+| Node / npm | ✅ 24.20.0 / 11.19.0 | `C:\Program Files\nodejs` |
+| Maven | ✅ 3.9.16 | `%LOCALAPPDATA%\Programs\apache-maven-3.9.16\bin` |
+| `JAVA_HOME` | ✅ definido (ámbito **máquina**) | `C:\Program Files\Java\jdk-26.0.2.1` |
+| Chocolatey | ✅ | `C:\ProgramData\chocolatey\bin` — se usó para instalar Python |
+| `unzip` | ✅ | `/usr/bin/unzip` |
+
+**El toolchain está completo.** No falta nada para generar, compilar y correr el proyecto.
+
+**El PATH del shell de esta sesión está desactualizado**: se capturó antes de la
+instalación, así que `python`, `java` y `node` "no se encuentran" aunque estén instalados.
+Exporta el PATH en cada comando hasta reiniciar la sesión:
+
+```bash
+export PATH="/c/Python314:/c/Program Files/Common Files/Oracle/Java/javapath:/c/Program Files/nodejs:$PATH"
 ```
 
----
+**El PATH de usuario es frágil en esta máquina.** Verificado el 2026-09-05: entre dos
+sesiones, la instalación de Chocolatey y Python reescribió el PATH de usuario y **borró la
+entrada de Maven**, dejando `mvn` irresoluble aunque los binarios seguían intactos en disco.
+La entrada muerta `C:\Program Files\Java\jdk-26\bin` desapareció en el mismo cambio y
+`JAVA_HOME` pasó de ámbito usuario a ámbito máquina.
 
-## 5. Flujos de trabajo
+Moraleja: **antes de dar por bueno el entorno, comprueba que `mvn`, `java` y `python` se
+resuelvan de verdad**, no que estén instalados. Comando de diagnóstico:
 
-### 5.1 Ingesta — «ingiere X»
-Se ingiere **una fuente a la vez**, salvo que el usuario pida un lote explícito.
-
-1. Extraer el texto de la fuente (ver §6).
-2. **Conversar los hallazgos clave con el usuario antes de escribir.** Si ya dio luz verde
-   para el lote, saltar este paso.
-3. Crear `wiki/fuentes/fuente-<slug>.md` con: metadatos, resumen, conceptos clave, código
-   relevante y qué aporta al proyecto.
-4. **Propagar**: actualizar las páginas de patrón, concepto o dominio que esa fuente toque.
-   Una fuente típica toca de 3 a 10 páginas. Crear las que falten.
-5. Registrar **contradicciones**: si la fuente nueva contradice algo ya escrito, no borrar
-   en silencio — dejar la afirmación antigua marcada y añadir un bloque
-   `> [!warning] Contradicción` con ambas versiones y su origen.
-6. Actualizar `index.md` y añadir una entrada a `log.md`.
-
-### 5.2 Consulta — preguntarle a la wiki
-1. Leer `index.md` primero para localizar páginas relevantes; luego entrar en ellas.
-2. Responder **citando páginas de la wiki**, no de memoria.
-3. Si la wiki no alcanza, decirlo explícitamente y proponer qué fuente ingerir o qué buscar.
-4. Si la respuesta tiene valor duradero (una comparación, un análisis, una tabla),
-   archivarla en `wiki/consultas/` y enlazarla desde `index.md`. Las buenas respuestas no
-   se quedan en el chat.
-
-### 5.3 Decisión de arquitectura (ADR) — «decidamos cómo hacer X»
-Antes de escribir código se crea `wiki/decisiones/adr-NNN-<slug>.md`:
-
-```markdown
-## Contexto      (qué parte del problema real, con enlace a [[dominio/...]])
-## Opciones      (patrones candidatos, con enlace a cada [[patron-...]])
-## Decisión
-## Justificación (por qué éste y no los otros, citando el curso)
-## Consecuencias (qué se gana, qué se complica)
-## Estado
+```powershell
+$env:Path = [Environment]::GetEnvironmentVariable('Path','Machine') + ';' + [Environment]::GetEnvironmentVariable('Path','User')
+foreach ($t in @('java','javac','mvn','python','node')) { Get-Command $t -ErrorAction SilentlyContinue | Select-Object Name, Source }
 ```
 
-Luego actualizar `uso_proyecto` en la página del patrón elegido y `wiki/sintesis.md`.
+Si falta Maven, se reañade con:
 
-### 5.4 Implementación — «impleméntalo»
-- Sólo se escribe en `src/` código que corresponda a un ADR **aceptado**.
-- Cada clase Java lleva un comentario de cabecera que nombra el patrón y enlaza el ADR:
-  `// Patrón: Factory Method — ver wiki/decisiones/adr-003-lector-de-fuentes.md`
-- Tras implementar, actualizar el ADR con lo aprendido en la práctica.
-
-### 5.5 Lint — «revisa la wiki»
-Chequeo de salud, bajo demanda. Buscar:
-- contradicciones entre páginas;
-- afirmaciones obsoletas que una fuente nueva ya superó;
-- páginas huérfanas (sin enlaces entrantes);
-- `[[enlaces]]` a páginas inexistentes que ya merecen existir;
-- patrones del curso sin página, o páginas de patrón sin la sección
-  «Aplicación en Podología Loayza»;
-- huecos de datos del dominio que haya que preguntarle al usuario.
-
-Salida: lista priorizada de arreglos propuestos + preguntas para el usuario.
-Registrar el lint en `log.md`.
-
----
-
-## 6. Herramientas de extracción
-
-Las fuentes son binarias. Cómo leer cada formato:
-
-| Formato | Cómo |
-|---|---|
-| `.pptx`, `.docx`, `.xlsx` | `python tools/extraer.py "Archivos_de_clase/ARCHIVO"` — vuelca el texto a stdout. Sin dependencias externas (son ZIP + XML). |
-| `.pdf` | Herramienta `Read` nativa con el parámetro `pages` (máx. 20 páginas por llamada). |
-| imágenes (`.jpg`, `.png`) | Herramienta `Read` directamente. |
-
-Los volcados intermedios grandes van al scratchpad de la sesión, **nunca** al repo.
-
-Entorno verificado (2026-09-04): Python 3.13 (sin `python-docx`, `python-pptx` ni `pypdf`),
-Java 26, sin Maven ni Gradle instalados — el proyecto Spring Boot los resuelve con el
-*wrapper* `./mvnw` ([[adr-001-stack-y-arquitectura]]).
-
----
-
-## 7. Reglas duras
-
-**Nunca:**
-1. Modificar, mover o borrar nada dentro de `Archivos_de_clase/`.
-2. Inventar contenido del curso. Si no está en una fuente ingerida, se marca como propuesta.
-3. Escribir contenido de la wiki dentro de `index.md` o `log.md` (son índice y bitácora).
-4. Borrar una afirmación en conflicto sin dejar registro de la contradicción.
-5. Implementar código sin un ADR aceptado.
-6. Subir a ningún servicio externo fotos, nombres o datos reales de las trabajadoras (§8).
-
-**Siempre:**
-1. Actualizar `index.md` y `log.md` en la misma pasada en que se crean o modifican páginas.
-2. Actualizar el campo `actualizado:` del frontmatter al tocar una página.
-3. Citar la fuente de cada afirmación.
-4. Escribir en español.
-5. Preferir editar una página existente antes que crear una casi-duplicada.
-
----
-
-## 8. El proyecto: Podología Loayza
-
-Enunciado completo y vivo en [[problema-cronogramas]].
-
-**Qué se construye:** un sistema de control de asistencia **antifraude** para las 7 sedes
-([[sedes]]).
-Las trabajadoras (podólogas y cajeras) marcan ingreso y salida desde una **PWA propia** con
-la cámara del celular; el sistema valida, identifica por rostro, registra y consolida el
-cronograma semanal por sede en el formato que ya se usa hoy
-([[formato-cronograma-actual]]).
-
-**De dónde viene:** hoy marcan enviando fotos a un grupo de WhatsApp por sede y alguien las
-transcribe a mano. Se descarta ese canal ([[adr-002-canal-de-marcacion]]) — leer grupos
-sólo es posible con librerías no oficiales que exponen el número del negocio a bloqueo.
-
-**El requisito que manda sobre todos:** [[antifraude]]. Las fotos existen porque con el
-cronograma de papel cualquiera podía mentir sobre su hora. Cualquier diseño que facilite el
-fraude rompe el propósito del sistema.
-
-**Restricción humana, y es la que manda de verdad:** las trabajadoras saben poco o nada de
-informática. Si la interfaz fricciona, el proyecto fracasa por más correcto que sea el
-código.
-
-**Destino:** herramienta de uso real en la empresa, no sólo entregable de curso.
-
-### Stack (ver [[adr-001-stack-y-arquitectura]])
-
-- **Java + Spring Boot**, backend con API y frontend web.
-- Maven vía *wrapper* (`./mvnw`), porque en este equipo no hay Maven ni Gradle instalados.
-- **Base de datos como almacén; el Excel es sólo formato de exportación.** Usar la hoja de
-  cálculo como base de datos es la causa raíz de los fallos documentados en
-  [[formato-cronograma-actual]].
-- Paquete raíz: `pe.loayza.cronograma`.
-
-### Principios de diseño que no se negocian
-
-1. **Nunca inventar un dato.** Si el sistema no puede determinar algo con confianza, lo
-   marca como pendiente y lo manda a la cola de revisión humana. Es preferible un hueco
-   honesto a una hora inventada.
-2. **Vocabulario normalizado en la salida**: un único término por concepto
-   (`DESCANSO`, no `DESCANSO`/`LIBRE`; `INASISTENCIA`, nunca `INACISTENCIA`).
-3. **Los agregados se recalculan siempre**, jamás se copian (los conteos MAÑANA/TARDE del
-   archivo actual llevan meses congelados).
-4. **Ninguna garantía antifraude depende del cliente.** El navegador puede mentir sobre la
-   cámara y sobre el GPS. Todo lo que importa se verifica en el servidor, y **el servidor es
-   la única autoridad de la hora** ([[antifraude]]).
-5. **Toda marcación conserva su evidencia** (foto, coordenadas, hora de servidor, resultado
-   de cada verificación). Sin evidencia no hay auditoría, y sin auditoría el sistema no
-   sirve ante un reclamo laboral.
-
-**Restricción de privacidad (transversal):** son rostros y ubicaciones de personas reales.
-El diseño asume procesamiento local, plantillas biométricas en lugar de fotos crudas cuando
-sea posible, y ningún envío a servicios de terceros sin una decisión explícita del usuario
-registrada en un ADR.
-
-Paquete raíz del código: `pe.loayza.cronograma`.
-
----
-
-## 9. Formato del log
-
-`log.md` es **append-only**. Cada entrada empieza con un prefijo consistente para poder
-filtrarla desde la línea de comandos:
-
-```
-## [2026-09-04] ingesta | S06 Patrones Creacionales (Singleton, Prototype)
+```powershell
+$b = "$env:LOCALAPPDATA\Programs\apache-maven-3.9.16\bin"
+[Environment]::SetEnvironmentVariable('Path', [Environment]::GetEnvironmentVariable('Path','User').TrimEnd(';') + ";$b", 'User')
 ```
 
-Tipos de entrada: `ingesta`, `consulta`, `decision`, `implementacion`, `lint`, `esquema`.
+- Los tres scripts de `tools/` (`extraer.py`, `extraer_pdf.py`, `pluscode.py`) **ya
+  funcionan**. `extraer_pdf.py` desbloqueó los PDF del curso.
+- `extraer_pdf.py` **pierde tildes y ligaturas** en algunos PDF (`presentacin` por
+  `presentación`, `cient!co` por `científico`). El texto sigue siendo utilizable, pero no
+  cites literalmente de esos archivos sin corregir; otros PDF salen con acentos intactos.
+- **Sí hay `unzip`.** Los formatos Office son ZIP con XML dentro, así que la extracción de
+  `.docx`, `.pptx` y `.xlsx` se puede hacer también sin Python:
 
-Debajo del encabezado, de 1 a 5 viñetas: qué se hizo, qué páginas se tocaron, qué quedó
-pendiente.
+  ```bash
+  # docx
+  unzip -p "ruta.docx" word/document.xml | sed 's|</w:p>|\n|g; s|<[^>]*>||g'
+  # pptx (una diapositiva)
+  unzip -p "ruta.pptx" ppt/slides/slide1.xml | sed 's|</a:p>|\n|g; s|<[^>]*>||g'
+  # xlsx (textos)
+  unzip -p "ruta.xlsx" xl/sharedStrings.xml | sed 's|</si>|\n|g; s|<[^>]*>||g'
+  ```
 
-Últimas entradas: `grep "^## \[" log.md | tail -5`
+- **Los PDF se leen con `python tools/extraer_pdf.py <ruta>`.** La herramienta Read nativa
+  sigue sin funcionar con PDF (falta `poppler-utils`), así que usa siempre el script.
+  Única excepción: `CASO DE EJEMPLO 2.pdf` rinde 510 caracteres — es un PDF de imágenes y
+  necesitaría OCR. Ver [[huecos-abiertos]].
+- **Los heredocs de Bash fallan en este entorno** (finales de línea CRLF rompen el
+  terminador). Para escribir páginas del wiki usa la herramienta Write, no `cat <<EOF`.
+
+**Compatibilidad con Spring Boot** (consultado a `start.spring.io/metadata/client` el
+2026-09-05): la versión por defecto es **Spring Boot 4.1.1** y las versiones de Java
+ofrecidas son **26, 25, 21 y 17**. El JDK 26 instalado está soportado, así que **no hace
+falta un segundo JDK**.
+
+## 8. Contexto del dominio (resumen operativo)
+
+Detalle completo en [[requisitos]] y [[sedes]]. Lo mínimo para trabajar:
+
+- **7 sedes** en Lima: Los Olivos, La Molina, San Borja, Lince, San Miguel, Surco,
+  Miraflores.
+- **Usuarias**: podólogas, mayores de 30 años, con poca familiaridad tecnológica. La
+  interfaz manda sobre la elegancia técnica: **simple, grande y en pocos pasos**.
+- **Flujo de marcación**: nombre → sede (desplegable) → entrada o salida → foto con fecha y
+  hora impresas → notas (opcional) → enviar.
+- **Multi-marcación**: una misma trabajadora marca varias veces al día en sedes distintas.
+  Ninguna regla puede asumir una entrada y una salida por día.
+- **Salidas**: dashboard de administradora con una pestaña por sede, y exportación a Excel
+  con el formato de `docs/Cronograma_Ejemplo.xlsx` (ver [[formato-cronograma-excel]]).
+
+## 9. Reglas duras
+
+1. **No inventes contenido de fuentes que no leíste.** Si un PDF está bloqueado, la página
+   lo dice; no se rellena con lo que "seguramente dice".
+2. **No edites `Archivos_de_clase/` ni `docs/`.**
+3. **Toda página nueva entra en `index.md`** en el mismo paso en que se crea.
+4. **Toda operación deja rastro en `log.md`.**
+5. **Un patrón sin requisito que lo justifique no se implementa.** El curso pide patrones;
+   el cliente pide una solución. La página de cada patrón debe decir a qué requisito sirve o
+   declararse como "solo estudio, fuera del software".

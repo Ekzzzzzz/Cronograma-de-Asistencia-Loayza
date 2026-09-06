@@ -1,89 +1,99 @@
 ---
+titulo: Patrón Factory
 tipo: patron
-titulo: Patrón Factory Method
-categoria: creacional
-uso_proyecto: candidato
-tags: [patron, creacional]
-creado: 2026-09-04
-actualizado: 2026-09-04
-estado: activo
-fuentes: ["[[fuente-s07-factory-builder]]"]
+estado: borrador
+fuentes:
+  - Archivos_de_clase/S07_s1-Patrones-Creacionales-FB_FLDRVK.pptx
+  - Archivos_de_clase/S15_s1s2 - PC-3-DPA.pdf
+actualizado: 2026-09-06
+tags: [creacional, gof, nucleo]
 ---
 
-# Patrón Factory Method
+# Patrón Factory
 
-## Definición
+**Familia:** creacional · **Sesión:** [[s07-factory-abstractfactory-builder]] · **Capa:**
+Control (fijada por PC-3) · **Requisito:** [[requisitos]] RF-04
 
-Genera objetos **sin revelar al cliente el mecanismo de creación**; el cliente pide por una
-interfaz estándar y recibe la implementación que corresponda
-([[fuente-s07-factory-builder]], diapositiva 10).
+## Qué es
 
-## Problema que resuelve
+Genera objetos "sin revelar el mecanismo de creación al cliente"; el cliente usa siempre la
+misma interfaz estándar. Ventaja que remarca el curso: permite **añadir tipos nuevos sin
+alterar el código cliente**.
 
-El cliente queda atado a clases concretas: añadir un tipo nuevo obliga a tocar todo el
-código existente. El caso del curso: un sitio que sólo vendía libros y luego añade ropa y
-calzado (diapositivas 13–14).
+## Por qué encaja aquí
 
-## Estructura
+[[requisitos]] RF-04 pide dos botones: **entrada** o **salida**. Ese es exactamente el
+parámetro de tipo del ejemplo `NotificacionFactory` de S07, que devuelve
+`NotificacionCorreo` o `NotificacionSMS`. La correspondencia es uno a uno, así que el
+ejemplo del curso se puede citar en el informe como fundamento directo.
 
-```mermaid
-classDiagram
-    class Producto {
-        <<interface>>
-        +operacion()
-    }
-    class ProductoA
-    class ProductoB
-    class Fabrica {
-        +crear(tipo) Producto
-    }
-    Producto <|.. ProductoA
-    Producto <|.. ProductoB
-    Fabrica ..> Producto : crea
-```
+Y las dos marcaciones **no son iguales**: una salida necesita una entrada previa con la que
+emparejarse, una entrada no. Esa diferencia de comportamiento justifica dos clases, no un
+booleano.
 
-## Ejemplo del curso
+## Diseño propuesto
 
 ```java
-public class NotificacionFactory {
-    public static Notificacion crearNotificacion(String tipo) {
-        if (tipo.equalsIgnoreCase("correo")) return new NotificacionCorreo();
-        else if (tipo.equalsIgnoreCase("sms")) return new NotificacionSMS();
-        else throw new IllegalArgumentException("Tipo de notificación desconocido");
+public enum TipoMarcacion { ENTRADA, SALIDA }
+
+public interface Marcacion extends ComponenteCronograma {
+    void validar(Jornada jornadaActual);
+    TipoMarcacion tipo();
+}
+
+public class MarcacionEntrada implements Marcacion {
+    @Override public TipoMarcacion tipo() { return TipoMarcacion.ENTRADA; }
+
+    @Override
+    public void validar(Jornada jornadaActual) {
+        if (jornadaActual.estaAbierta())
+            throw new MarcacionInvalida("Ya hay una entrada sin salida en esta sede.");
+    }
+}
+
+public class MarcacionSalida implements Marcacion {
+    @Override public TipoMarcacion tipo() { return TipoMarcacion.SALIDA; }
+
+    @Override
+    public void validar(Jornada jornadaActual) {
+        if (!jornadaActual.estaAbierta())
+            throw new MarcacionInvalida("No hay una entrada previa que cerrar.");
+    }
+}
+
+// La fábrica
+public class MarcacionFactory {
+
+    public static Marcacion crear(TipoMarcacion tipo,
+                                  Trabajadora trabajadora,
+                                  Sede sede,
+                                  Foto evidencia,
+                                  String notas) {
+        return switch (tipo) {
+            case ENTRADA -> new MarcacionEntrada(trabajadora, sede, evidencia, notas);
+            case SALIDA  -> new MarcacionSalida(trabajadora, sede, evidencia, notas);
+        };
     }
 }
 ```
 
-([[fuente-s07-factory-builder]], diapositiva 15)
+El cliente —[[patron-facade]]— nunca hace `new MarcacionEntrada(...)`: pide a la fábrica y
+recibe la interfaz.
 
-## Aplicación en Podología Loayza
+## Por qué Factory y no Abstract Factory
 
-**Candidato fuerte** *(propuesta del agente)*. Dos usos claros:
+S07 lo dice explícitamente: los diseños **empiezan con Factory Method** —menos difícil, más
+adaptable— y avanzan hacia Abstract Factory **solo cuando se descubre que hace falta más
+flexibilidad**. Aquí no hay familias de productos que varíen juntas: solo hay marcaciones.
+Abstract Factory quedó descartado en [[mapa-patron-requisito]].
 
-**1. Exportadores del cronograma.** Hoy el formato objetivo es Excel
-([[formato-cronograma-actual]]), pero pedirán PDF o CSV. Una `FabricaDeExportadores` que
-devuelva el `ExportadorCronograma` adecuado deja el resto del sistema intacto cuando se
-añada uno.
+## Cuidados
 
-**2. Verificaciones antifraude.** Cada sede puede activar un subconjunto distinto de las
-verificaciones de [[antifraude]]. Una fábrica que las construya a partir de la
-configuración de la sede evita un `if` gigante repartido por el código.
+- El `switch` sobre el enum es exhaustivo: si mañana aparece un tercer tipo (por ejemplo,
+  una pausa de refrigerio) el compilador obliga a tratarlo. Eso es deseable.
+- No convertir la fábrica en un cajón de sastre con quince ramas: sería el Golden Hammer de
+  [[s14-antipatrones]].
 
-**Matiz importante:** el ejemplo del curso usa una fábrica **estática con `if/else`**. En
-Spring hay una versión más limpia: inyectar un `Map<String, Exportador>` que el propio
-contenedor rellena con todas las implementaciones. Sigue siendo el mismo patrón, sin el
-`if` que hay que editar cada vez. Conviene documentar ambas versiones en el entregable.
+## Enlaces
 
-## Patrones relacionados
-
-[[patron-abstract-factory]] (familias en vez de un producto), [[patron-builder]] (cuando la
-complejidad está en armar el objeto, no en elegir su tipo), [[patron-prototype]].
-
-## Errores comunes
-
-Dejar el `if/else` creciendo sin límite —es [[antipatrones|Shotgun Surgery]] esperando a
-ocurrir—; usar una fábrica donde `new` bastaba.
-
-## Fuentes
-
-[[fuente-s07-factory-builder]] (diapositivas 10–16)
+[[mapa-patron-requisito]] · [[cuatro-capas]] · [[patron-facade]] · [[patron-state]]

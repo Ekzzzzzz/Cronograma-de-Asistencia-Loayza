@@ -1,93 +1,102 @@
 ---
-tipo: patron
 titulo: Patrón Composite
-categoria: estructural
-uso_proyecto: candidato
-tags: [patron, estructural]
-creado: 2026-09-04
-actualizado: 2026-09-04
-estado: activo
-fuentes: ["[[fuente-s09-decorator-composite]]"]
+tipo: patron
+estado: borrador
+fuentes:
+  - Archivos_de_clase/S09_s1-Patrones-Estructurales-DC.pptx
+  - docs/Cronograma_Ejemplo.xlsx
+actualizado: 2026-09-06
+tags: [estructural, gof, nucleo]
 ---
 
 # Patrón Composite
 
-## Definición
+**Familia:** estructural · **Sesión:** [[s09-decorator-composite]] · **Capa:** sin asignar
+por PC-3; se propone **Modelo** · **Requisito:** [[requisitos]] RF-12
 
-Para elementos **jerárquicos** construidos sobre relaciones **parte-todo**. Permite que el
-cliente trate de forma **uniforme** a un elemento simple y a una composición de elementos
-([[fuente-s09-decorator-composite]], diapositiva 14).
+## Qué es
 
-El curso lo define en relación con el Decorator: es **una generalización del Decorator con
-una colección agregada de instancias de Component**, mientras que el decorador sólo ofrece
-*una composición vertical simple entre el todo y sus partes*.
+Trata de manera uniforme objetos individuales y composiciones, en relaciones **parte-todo**.
+S09 lo describe como "una generalización del patrón [[patron-decorator]] con una colección
+agregada de instancias de Component": Decorator ofrece composición *vertical* simple;
+Composite, una jerarquía completa.
 
-## Problema que resuelve
+El ejemplo del curso es clínico —`Treatment`, `SingleTreatment`, `CompositeTreatment`— y
+sirve casi sin adaptación.
 
-El cliente tiene que preguntar «¿esto es uno o son muchos?» antes de cada operación. Con
-Composite, hoja y rama responden a la misma interfaz.
+## Por qué encaja aquí
 
-## Estructura
+[[formato-cronograma-excel]] demuestra que **la celda de jornada es una agregación, no un
+dato**: `10:12AM - 8:46PM` es el resultado de emparejar dos marcaciones. Y con
+[[requisitos]] RF-09 (marcación múltiple) una jornada puede tener más de un par.
 
-```mermaid
-classDiagram
-    class Component {
-        <<interface>>
-        +operacion()
-    }
-    class Hoja {
-        +operacion()
-    }
-    class Compuesto {
-        -List~Component~ hijos
-        +operacion()
-        +agregar(Component)
-    }
-    Component <|.. Hoja
-    Component <|.. Compuesto
-    Compuesto o-- Component : contiene
+La jerarquía del cronograma es literalmente parte-todo:
+
+```
+SemanaSede            (compuesto — una pestaña del dashboard, una tabla de Excel)
+└── DiaSede           (compuesto — una columna: LUNES 25)
+    └── Jornada       (compuesto — una celda: 10:12AM - 8:46PM)
+        └── Marcacion (hoja — una entrada o una salida con su foto)
 ```
 
-## Ejemplo del curso
+Que el cliente pueda pedir `horasTrabajadas()` a cualquier nivel sin saber si habla con una
+hoja o con un compuesto es exactamente lo que el patrón resuelve.
 
-Sistema de gestión de pacientes: la interfaz `Treatment` con `getDescription()` y `cost()`;
-un `SingleTreatment` y un tratamiento compuesto se usan igual, y el compuesto suma los
-costes de sus partes ([[fuente-s09-decorator-composite]], diapositivas 16–17).
+## Diseño propuesto
 
-## Aplicación en Podología Loayza
+```java
+public interface ComponenteCronograma {
+    Duration horasTrabajadas();
+    String  descripcion();   // lo que termina en la celda del Excel
+}
 
-**Candidato fuerte, y el que mejor resuelve el problema central del proyecto**
-*(propuesta del agente)*.
+// Hoja
+public class Marcacion implements ComponenteCronograma {
+    private final TipoMarcacion tipo;      // ENTRADA | SALIDA
+    private final LocalDateTime momento;
 
-**1. Las verificaciones antifraude.** [[antifraude]] enumera siete verificaciones y dice
-explícitamente que deben poder añadirse y quitarse. Con Composite:
+    @Override public Duration horasTrabajadas() { return Duration.ZERO; }
+    @Override public String descripcion() {
+        return momento.format(DateTimeFormatter.ofPattern("h:mma"));
+    }
+}
 
-- cada verificación individual es una **hoja** que recibe la marcación y devuelve un
-  resultado con su confianza;
-- una **verificación compuesta** agrupa varias y combina sus resultados en un veredicto;
-- el `ServicioDeMarcacion` ([[patron-facade]]) invoca **una sola** verificación, sin saber
-  si detrás hay una o veinte.
+// Compuesto
+public class Jornada implements ComponenteCronograma {
+    private final List<ComponenteCronograma> marcaciones = new ArrayList<>();
 
-Eso permite agrupar por naturaleza —verificaciones de ubicación, de identidad, de
-temporalidad— y configurar perfiles distintos por sede sin tocar código. Es literalmente el
-ejemplo del curso: costes que se suman a través de una jerarquía, aquí puntuaciones de
-confianza.
+    public void agregar(ComponenteCronograma c) { marcaciones.add(c); }
 
-**2. El cronograma.** La rejilla de [[formato-cronograma-actual]] es una jerarquía:
-cronograma semanal → día → marcaciones de una trabajadora. Los conteos `MAÑANA` y `TARDE`
-son una agregación que sube por el árbol — y recalcularla siempre, en vez de copiarla, es
-justo lo que el proceso manual dejó de hacer durante 22 semanas.
+    @Override
+    public Duration horasTrabajadas() {
+        return marcaciones.stream()
+                .map(ComponenteCronograma::horasTrabajadas)
+                .reduce(Duration.ZERO, Duration::plus);
+    }
 
-## Patrones relacionados
+    @Override
+    public String descripcion() {   // "10:12AM - 8:46PM"
+        return primeraEntrada() + " - " + ultimaSalida();
+    }
+}
 
-[[patron-decorator]] (su caso particular vertical), [[patron-builder]] (para armar el
-árbol), [[patron-facade]].
+// SemanaSede y DiaSede repiten la misma estructura de agregación
+```
 
-## Errores comunes
+`horasTrabajadas()` se propaga hacia arriba igual que `cost()` recorre la lista en el
+`CompositeTreatment` del curso.
 
-Poner `agregar()` y `quitar()` en la interfaz común, obligando a las hojas a implementar
-métodos que no tienen sentido; jerarquías tan profundas que el recorrido se vuelve costoso.
+## Cuidados
 
-## Fuentes
+- **`Marcacion` devuelve `Duration.ZERO`**: una marcación suelta no tiene duración, la
+  duración nace del par. Es el compromiso normal de Composite — la hoja implementa
+  operaciones que no le corresponden del todo.
+- **El emparejamiento entrada–salida no es trivial** con marcación múltiple entre sedes. Ver
+  el hueco en [[formato-cronograma-excel]].
+- Los estados `DESCANSO`, `NO TURNO` e `INASISTENCIA` **no** salen de esta jerarquía: son
+  ausencia de marcaciones. Los resuelve [[patron-state]].
 
-[[fuente-s09-decorator-composite]] (diapositivas 14–17)
+## Enlaces
+
+[[mapa-patron-requisito]] · [[formato-cronograma-excel]] · [[patron-state]] ·
+[[patron-decorator]]

@@ -1,103 +1,138 @@
 ---
-tipo: patron
 titulo: Patrón State
-categoria: comportamiento
-uso_proyecto: candidato
-tags: [patron, comportamiento]
-creado: 2026-09-04
-actualizado: 2026-09-04
-estado: activo
-fuentes: ["[[fuente-s12-state-observer]]"]
+tipo: patron
+estado: borrador
+fuentes:
+  - Archivos_de_clase/S12_s1 - Patrones comportamiento_State_Observer_DPA.pptx
+  - docs/Cronograma_Ejemplo.xlsx
+actualizado: 2026-09-06
+tags: [comportamiento, gof, nucleo, no-obligatorio]
 ---
 
 # Patrón State
 
-## Definición
+**Familia:** comportamiento · **Sesión:** [[s12-state-observer]] · **Capa:** Modelo ·
+**Requisito:** [[requisitos]] RF-09 y RF-12
 
-Permite que un objeto **cambie su comportamiento según su estado interno**. Una interfaz
-`State` declara los métodos que implementan los estados concretos; el objeto **Context**
-guarda una referencia a un `State` y **delega** en él
-([[fuente-s12-state-observer]], diapositiva 18).
+**No lo exige [[pc3-entregable]]**, y aun así entra al núcleo: resuelve un problema que
+ningún patrón obligatorio cubre.
 
-## Problema que resuelve
+## Qué es
 
-Un objeto que se comporta distinto en cada fase de su vida. Sin el patrón, aparece un
-`switch` sobre un campo `estado` repetido en cada método, y añadir una fase obliga a tocar
-todos.
+Permite a un objeto "cambiar su comportamiento cuando cambia su estado interno. El objeto
+parecerá cambiar su clase" (S12). Se implementa con una interfaz `State`, clases concretas
+por estado, y un `Context` que **delega** las solicitudes al estado actual.
 
-## Estructura
+S12 advierte que "puede ser excesivo si solo hay pocos estados".
 
-```mermaid
-classDiagram
-    class Context {
-        -State estado
-        +solicitud()
-        +cambiarEstado(State)
+## Por qué encaja aquí
+
+Dos problemas abiertos que se resuelven con el mismo mecanismo:
+
+1. **Entrada sin salida** (pregunta 5 de [[huecos-abiertos]]): si una trabajadora marca
+   entrada y nunca la salida, ¿qué muestra el cronograma? Es un estado, no un error.
+2. **Los tres marcadores del Excel.** [[formato-cronograma-excel]] distingue `DESCANSO`,
+   `NO TURNO` e `INASISTENCIA`, y ninguno se deduce de las marcaciones: los tres son
+   "ausencia de marcaciones" con significados distintos.
+
+Contando todo son **siete estados**, así que la advertencia de S12 sobre pocos estados no
+aplica. Al contrario: sin State, esto termina siendo una cadena de `if` sobre banderas — el
+código espagueti que [[s14-antipatrones]] señala.
+
+## Los estados
+
+```
+SIN_INICIAR ──marcar entrada──► ABIERTA ──marcar salida──► CERRADA
+     │                             │
+     │                             └──cierre del día sin salida──► INCOMPLETA
+     │
+     └── sin marcaciones y con turno asignado ──► INASISTENCIA
+     └── sin marcaciones y con descanso        ──► DESCANSO
+     └── sin marcaciones y sin turno           ──► NO_TURNO
+```
+
+## Diseño propuesto
+
+```java
+public interface EstadoJornada {
+    EstadoJornada registrar(Jornada jornada, Marcacion marcacion);
+    String etiquetaCronograma(Jornada jornada);   // lo que va a la celda del Excel
+}
+
+public class SinIniciar implements EstadoJornada {
+    @Override
+    public EstadoJornada registrar(Jornada jornada, Marcacion marcacion) {
+        if (marcacion.tipo() != TipoMarcacion.ENTRADA)
+            throw new MarcacionInvalida("No hay una entrada previa que cerrar.");
+        jornada.agregar(marcacion);
+        return new Abierta();
     }
-    class State {
-        <<interface>>
-        +manejar(Context)
+
+    @Override
+    public String etiquetaCronograma(Jornada jornada) { return "NO TURNO"; }
+}
+
+public class Abierta implements EstadoJornada {
+    @Override
+    public EstadoJornada registrar(Jornada jornada, Marcacion marcacion) {
+        if (marcacion.tipo() == TipoMarcacion.ENTRADA)
+            throw new MarcacionInvalida("Ya hay una entrada sin salida en esta sede.");
+        jornada.agregar(marcacion);
+        return new Cerrada();
     }
-    class EstadoA
-    class EstadoB
-    Context o-- State
-    State <|.. EstadoA
-    State <|.. EstadoB
+
+    @Override
+    public String etiquetaCronograma(Jornada jornada) { return "SIN SALIDA"; }
+}
+
+public class Cerrada implements EstadoJornada {
+    @Override
+    public EstadoJornada registrar(Jornada jornada, Marcacion marcacion) {
+        // Marcación múltiple: se abre un turno nuevo en la misma sede
+        if (marcacion.tipo() != TipoMarcacion.ENTRADA)
+            throw new MarcacionInvalida("No hay una entrada previa que cerrar.");
+        jornada.agregar(marcacion);
+        return new Abierta();
+    }
+
+    @Override
+    public String etiquetaCronograma(Jornada jornada) {
+        return jornada.descripcion();     // "10:12AM - 8:46PM"
+    }
+}
+
+// Descanso, NoTurno e Inasistencia son estados terminales sin marcaciones
 ```
 
-## Ejemplo del curso
+El `Context` es la propia `Jornada`, que delega:
 
-> [!warning] Sin código en la fuente
-> S12 sólo trae la descripción de los participantes y una tabla de ventajas y desventajas
-> (diapositivas 18–20). El código habría que sacarlo de `S12-GUIA-TALLER_DPA.docx`, sin
-> ingerir.
+```java
+public class Jornada implements ComponenteCronograma {
+    private EstadoJornada estado = new SinIniciar();
 
-## Aplicación en Podología Loayza
+    public void registrar(Marcacion marcacion) {
+        this.estado = estado.registrar(this, marcacion);
+    }
 
-**Candidato fuerte** *(propuesta del agente)*.
-
-Una `Marcacion` recorre un ciclo de vida con reglas distintas en cada fase:
-
-```
-RECIBIDA → VALIDADA → IDENTIFICADA → REGISTRADA
-    │           │            │
-    └───────────┴────────────┴──→ EN_REVISION → APROBADA
-                                        │
-                                        └─────→ RECHAZADA
+    @Override
+    public String descripcionCelda() { return estado.etiquetaCronograma(this); }
+}
 ```
 
-Lo que cambia según el estado no es cosmético:
+## Cómo se conecta con lo demás
 
-- una marcación `EN_REVISION` **no cuenta** para el cronograma; una `REGISTRADA` sí;
-- sólo desde `EN_REVISION` la administradora puede corregir la hora o reasignar la
-  trabajadora;
-- una `APROBADA` manualmente conserva la marca de que fue intervenida, y eso debe salir en
-  la auditoría;
-- una `RECHAZADA` no se borra —la evidencia se conserva ([[antifraude]], principio 4)— pero
-  deja de contar.
+- La validación que en [[patron-factory]] vive en `Marcacion.validar()` **se puede mover
+  aquí**. Decidir dónde queda: duplicarla en ambos sitios sería *Shotgun Surgery*.
+- `etiquetaCronograma()` es lo que [[patron-composite]] necesita para llenar la celda, y
+  cierra el hueco que esa página dejaba abierto.
 
-Modelar esto como estados con su propio comportamiento evita el `switch` repetido y, sobre
-todo, hace **imposibles las transiciones ilegales**: que algo pase de `RECHAZADA` a
-`REGISTRADA` sin pasar por revisión no debería poder ni escribirse.
+## Hueco que sigue abierto
 
-El curso advierte que el patrón *puede ser excesivo si sólo hay pocos estados*
-(diapositiva 20). Aquí hay seis, con reglas de transición reales: está justificado.
+Distinguir `DESCANSO` de `NO TURNO` e `INASISTENCIA` **requiere un cronograma planificado**
+que hoy no existe en los requisitos. State provee la estructura; falta el dato. Pregunta 3
+de [[huecos-abiertos]].
 
-Segundo candidato, más pequeño: la **celda del cronograma**, que es horario, estado
-(`DESCANSO`, `VACACIONES`, `INASISTENCIA`…) o pendiente de resolver
-([[formato-cronograma-actual]]).
+## Enlaces
 
-## Patrones relacionados
-
-[[patron-observer]] (los cambios de estado son justo lo que se notifica),
-[[patron-command]] (las transiciones se pueden encapsular como comandos),
-[[patron-memento]].
-
-## Errores comunes
-
-Que los estados conozcan demasiado del contexto; repartir las reglas de transición entre
-estados y contexto hasta que nadie sepa dónde mirar.
-
-## Fuentes
-
-[[fuente-s12-state-observer]] (diapositivas 18–21)
+[[mapa-patron-requisito]] · [[patron-composite]] · [[formato-cronograma-excel]] ·
+[[huecos-abiertos]]

@@ -1,105 +1,119 @@
 ---
-tipo: patron
 titulo: Patrón Decorator
-categoria: estructural
-uso_proyecto: candidato
-tags: [patron, estructural]
-creado: 2026-09-04
-actualizado: 2026-09-04
-estado: activo
-fuentes: ["[[fuente-s09-decorator-composite]]"]
+tipo: patron
+estado: borrador
+fuentes:
+  - Archivos_de_clase/S09_s1-Patrones-Estructurales-DC.pptx
+  - Archivos_de_clase/S15_s1s2 - PC-3-DPA.pdf
+actualizado: 2026-09-06
+tags: [estructural, gof, nucleo]
 ---
 
 # Patrón Decorator
 
-## Definición
+**Familia:** estructural · **Sesión:** [[s09-decorator-composite]] · **Capa:** sin asignar
+por PC-3; se propone **Vista** · **Requisito:** [[requisitos]] RF-06
 
-Añade responsabilidades a un objeto **envolviéndolo**. El decorador y el componente básico
-derivan del mismo tipo, y el decorador **agrega una instancia** del componente y decora su
-operación ([[fuente-s09-decorator-composite]], diapositiva 9).
+El encaje más fuerte del proyecto entero.
 
-## Problema que resuelve
+## Qué es
 
-Añadir comportamiento sin heredar y sin modificar la clase original, y poder **apilar**
-varios añadidos en cualquier combinación. Con herencia harían falta todas las combinaciones
-posibles como subclases.
+"Permite agregar funcionalidades adicionales a un objeto de manera dinámica sin modificar su
+estructura" (S09, diapositiva 3). `Decorator` y el componente básico derivan ambos de una
+misma interfaz `Component`, y el decorador **agrega una instancia** del componente: su
+operación queda "decorada" con la del original.
 
-## Estructura
+La distinción que da el curso: Decorator es **estructuralmente como Proxy**, pero con
+intención opuesta — en Decorator al cliente le interesa *lo que se agrega*; en
+[[patron-proxy]], *el objeto agregado*.
 
-```mermaid
-classDiagram
-    class Component {
-        <<interface>>
-        +operacion()
-    }
-    class ComponenteBasico
-    class Decorador {
-        -Component envuelto
-        +operacion()
-    }
-    class DecoradorA
-    class DecoradorB
-    Component <|.. ComponenteBasico
-    Component <|.. Decorador
-    Decorador <|-- DecoradorA
-    Decorador <|-- DecoradorB
-    Decorador o-- Component : envuelve
-```
+## Por qué encaja aquí
 
-## Ejemplo del curso
+[[requisitos]] RF-06 pide que **la fecha y la hora salgan en la foto**, no solo guardadas
+como metadato. Eso es literalmente envolver un objeto añadiéndole responsabilidades sin
+cambiar su interfaz. Y los sellos son **acumulables e independientes**: fecha y hora, sede,
+nombre de la trabajadora. Cada uno es un decorador que se puede encadenar o quitar.
+
+La cadena `BasicTransport → InsuranceDecorator → TrackingDecorator` del ejemplo de S09 se
+traduce uno a uno.
+
+## Diseño propuesto
 
 ```java
-public abstract class TransportDecorator implements Transport {
-    protected Transport decoratedTransport;
-    public TransportDecorator(Transport t) { this.decoratedTransport = t; }
-    public double cost() { return decoratedTransport.cost(); }
+public interface Foto {
+    BufferedImage render();
+    String descripcion();
 }
 
-public class InsuranceDecorator extends TransportDecorator {
-    public double cost() { return decoratedTransport.cost() + 20.0; }
+// Componente básico: la imagen tal como salió de la cámara
+public class FotoBase implements Foto {
+    private final BufferedImage original;
+
+    public FotoBase(BufferedImage original) { this.original = original; }
+
+    @Override public BufferedImage render()   { return original; }
+    @Override public String descripcion()     { return "Foto sin sellos"; }
 }
+
+// Decorador abstracto
+public abstract class SelloDecorator implements Foto {
+    protected final Foto fotoDecorada;
+
+    protected SelloDecorator(Foto fotoDecorada) { this.fotoDecorada = fotoDecorada; }
+
+    @Override public BufferedImage render()   { return fotoDecorada.render(); }
+    @Override public String descripcion()     { return fotoDecorada.descripcion(); }
+}
+
+// Decorador concreto: el que exige RF-06
+public class SelloFechaHora extends SelloDecorator {
+    private static final DateTimeFormatter FORMATO =
+            DateTimeFormatter.ofPattern("dd/MM/yyyy hh:mm a");
+    private final LocalDateTime momento;
+
+    public SelloFechaHora(Foto fotoDecorada, LocalDateTime momento) {
+        super(fotoDecorada);
+        this.momento = momento;
+    }
+
+    @Override
+    public BufferedImage render() {
+        BufferedImage imagen = fotoDecorada.render();
+        Graphics2D g = imagen.createGraphics();
+        g.setFont(new Font("SansSerif", Font.BOLD, 36));
+        g.setColor(Color.WHITE);
+        g.drawString(momento.format(FORMATO), 24, imagen.getHeight() - 24);
+        g.dispose();
+        return imagen;
+    }
+
+    @Override
+    public String descripcion() {
+        return fotoDecorada.descripcion() + ", con fecha y hora";
+    }
+}
+
+// Decorador concreto: deja constancia de la sede elegida
+public class SelloSede extends SelloDecorator { /* análogo */ }
 ```
 
-Y se apilan: `new TrackingDecorator(new InsuranceDecorator(new BasicTransport()))`
-([[fuente-s09-decorator-composite]], diapositivas 11–13).
+Uso desde [[patron-facade]]:
 
-## Aplicación en Podología Loayza
-
-**Candidato fuerte** *(propuesta del agente)*.
-
-**1. Envolver el reconocedor facial.** El `ReconocedorFacial` de [[patron-adapter]] necesita
-varias capas que no son asunto suyo, y que se quieren poder activar por separado:
-
-```
-ReconocedorConMetricas( ReconocedorConAuditoria( ReconocedorConCache( ReconocedorReal ) ) )
+```java
+Foto evidencia = new SelloSede(
+                     new SelloFechaHora(new FotoBase(capturada), LocalDateTime.now()),
+                     sede);
 ```
 
-- **caché**: no volver a analizar la misma foto;
-- **auditoría**: dejar rastro de cada intento de identificación — obligatorio con datos
-  biométricos (`CLAUDE.md` §8);
-- **métricas**: medir cuánto tarda y con qué confianza acierta, para poder ajustar umbrales.
+## Cuidados
 
-Ninguna de esas capas pertenece al motor de reconocimiento. Apilarlas es exactamente el
-ejemplo del transporte con seguro y rastreo.
+- **El sello debe aplicarse en el servidor, no en el navegador.** Si se dibuja en el cliente,
+  la trabajadora podría manipular la hora. El decorador vive en la capa que persiste.
+- `render()` como está escrito **modifica la imagen recibida**. Conviene copiarla antes de
+  dibujar, o el decorador de más adentro queda alterado.
+- No abusar: tres sellos son suficientes. Una cadena de ocho decoradores sería
+  Overengineering ([[s14-antipatrones]]).
 
-**2. Enriquecer verificaciones antifraude.** Una verificación puede envolverse para que
-además registre su resultado o tolere fallos sin tumbar la cadena ([[antifraude]]).
+## Enlaces
 
-**Cuidado** con lo que el propio curso advierte (diapositiva 9): Decorator y
-[[patron-proxy]] se parecen estructuralmente pero difieren en intención. Aquí el interés
-está en **lo que se añade** (caché, auditoría) → Decorator. Cuando el interés esté en
-**controlar el acceso al objeto envuelto** → Proxy.
-
-## Patrones relacionados
-
-[[patron-composite]] (el curso lo llama una generalización del Decorator con colección),
-[[patron-proxy]] (misma estructura, otra intención), [[patron-adapter]].
-
-## Errores comunes
-
-Apilar tantas capas que ya nadie sabe qué se está ejecutando; que un decorador cambie el
-contrato en vez de sólo enriquecerlo.
-
-## Fuentes
-
-[[fuente-s09-decorator-composite]] (diapositivas 9–13)
+[[mapa-patron-requisito]] · [[cuatro-capas]] · [[patron-facade]] · [[patron-composite]]

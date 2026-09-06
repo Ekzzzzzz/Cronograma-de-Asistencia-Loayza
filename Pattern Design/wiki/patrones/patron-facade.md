@@ -1,88 +1,93 @@
 ---
-tipo: patron
 titulo: Patrón Facade
-categoria: estructural
-uso_proyecto: candidato
-tags: [patron, estructural]
-creado: 2026-09-04
-actualizado: 2026-09-04
-estado: activo
-fuentes: ["[[fuente-s08-adapter-facade]]"]
+tipo: patron
+estado: borrador
+fuentes:
+  - Archivos_de_clase/S08_s1-Patrones-Estructurales-AF.pptx
+  - Archivos_de_clase/S15_s1s2 - PC-3-DPA.pdf
+actualizado: 2026-09-06
+tags: [estructural, gof, nucleo]
 ---
 
 # Patrón Facade
 
-## Definición
+**Familia:** estructural · **Sesión:** [[s08-adapter-facade]] · **Capa:** Control (fijada
+por PC-3) · **Requisito:** [[requisitos]] RF-05 a RF-08
 
-Ofrece una interfaz **unificada** sobre un sistema complejo compuesto de varios subsistemas:
-**un único punto de entrada** que simplifica el acceso
-([[fuente-s08-adapter-facade]], diapositiva 17).
+## Qué es
 
-## Problema que resuelve
+Crea "una interfaz más unificada para un sistema más complejo", simplificando el acceso
+mediante **un único punto de entrada**. El curso lo resume así frente a Adapter: **Facade
+simplifica, Adapter traduce**.
 
-El cliente tiene que conocer y coordinar media docena de componentes en el orden correcto.
-La fachada esconde esa coreografía.
+El caso práctico de S08 es un **hospital** que integra registros médicos, laboratorio y
+facturación tras una sola fachada, "sin que los usuarios interactúen directamente con cada
+sistema".
 
-## Estructura
+## Por qué encaja aquí
 
-```mermaid
-classDiagram
-    class Cliente
-    class Fachada {
-        +operacionCompleta()
+Enviar una marcación dispara cinco cosas: validar la trabajadora y la sede, crear la
+marcación ([[patron-factory]]), sellar la foto ([[patron-decorator]]), persistir, y notificar
+al dashboard ([[patron-observer]] si entra). El controlador web **no debería conocer ese
+orden**, y menos con [[requisitos]] RNF-01 exigiendo simplicidad: un solo botón "enviar" del
+lado de la usuaria debería ser una sola llamada del lado del código.
+
+## Diseño propuesto
+
+```java
+public class RegistrarMarcacionFacade {
+
+    private final CatalogoSedes      catalogo;      // patron-singleton
+    private final RepositorioMarcaciones repositorio;
+    private final RepositorioFotos   fotos;
+
+    public ResultadoMarcacion registrar(SolicitudMarcacion solicitud) {
+
+        // 1. Resolver sede contra el catálogo cerrado de 7
+        Sede sede = catalogo.porNombre(solicitud.nombreSede());
+
+        // 2. Sellar la evidencia — la hora la pone el servidor, no el cliente
+        Foto evidencia = new SelloSede(
+                             new SelloFechaHora(new FotoBase(solicitud.imagen()),
+                                                LocalDateTime.now()),
+                             sede);
+
+        // 3. Crear la marcación del tipo correcto
+        Marcacion marcacion = MarcacionFactory.crear(
+                solicitud.tipo(), solicitud.trabajadora(), sede,
+                evidencia, solicitud.notas());
+
+        // 4. Validar contra la jornada abierta en esa sede
+        Jornada jornada = repositorio.jornadaDelDia(
+                solicitud.trabajadora(), sede, LocalDate.now());
+        marcacion.validar(jornada);
+
+        // 5. Persistir imagen y registro
+        long idFoto = fotos.guardar(evidencia.render());
+        repositorio.guardar(marcacion, idFoto);
+
+        return ResultadoMarcacion.exito(marcacion);
     }
-    class SubsistemaA
-    class SubsistemaB
-    class SubsistemaC
-    Cliente --> Fachada
-    Fachada --> SubsistemaA
-    Fachada --> SubsistemaB
-    Fachada --> SubsistemaC
+}
 ```
 
-## Ejemplo del curso
+El controlador de la capa Vista queda reducido a una línea:
 
-`LavadoraFacade` sobre los subsistemas `Lavado`, `Enjuague` y `Centrifugado`: el cliente
-llama a la lavadora, no a cada parte ([[fuente-s08-adapter-facade]], diapositivas 19–21).
+```java
+return facade.registrar(solicitud);
+```
 
-La otra analogía del curso encaja mejor con este proyecto: el cliente no necesita conocer el
-inventario, le pregunta al comerciante, que sabe dónde está cada cosa (diapositiva 18).
+## Cuidados
 
-## Aplicación en Podología Loayza
+- **Facade no es una clase-Dios.** Coordina, no implementa: cada paso delega en su
+  colaborador. Si empieza a acumular lógica de negocio propia, se convierte en el
+  *Big Ball of Mud* de [[s14-antipatrones]].
+- El paso 2 usa `LocalDateTime.now()` **del servidor** a propósito. Es la garantía de que el
+  sello de RF-06 no se puede falsificar desde el teléfono.
+- Con marcación múltiple ([[requisitos]] RF-09), `jornadaDelDia` debe filtrar **por sede**,
+  no solo por trabajadora y fecha.
 
-**Candidato fuerte, y es el patrón que da forma a la tubería entera**
-*(propuesta del agente)*.
+## Enlaces
 
-La tubería de [[adr-001-stack-y-arquitectura]] tiene seis etapas, cada una con su
-componente: validación antifraude, identificación facial, tipificación, registro,
-consolidación. El controlador REST que recibe la foto **no debería orquestar eso**.
-
-Un `ServicioDeMarcacion` expone un único método —recibir una marcación y devolver su
-resultado— y coordina las etapas por dentro. El controlador queda de tres líneas, y la
-lógica de negocio no se filtra a la capa web.
-
-Beneficio secundario y nada menor: **es el punto donde poner la transacción**. Una marcación
-se registra entera o no se registra; sin un punto único de entrada eso se vuelve difícil de
-garantizar.
-
-Segunda fachada útil: `ServicioDeCronograma`, que esconde el armado de la rejilla semanal,
-el recálculo de conteos y la exportación a Excel tras una sola operación.
-
-**Cuidado:** una fachada que crece sin freno se convierte en un objeto-dios, que es un
-[[antipatrones|antipatrón]] conocido. Debe coordinar, no decidir: las reglas viven en los
-componentes.
-
-## Patrones relacionados
-
-[[patron-adapter]] (traduce una interfaz; la fachada simplifica un conjunto),
-[[patron-composite]], [[patron-command]] (las operaciones que la fachada expone pueden
-encapsularse como comandos), [[mvc]].
-
-## Errores comunes
-
-Convertirla en un objeto-dios; exponer los subsistemas a través de ella y perder así el
-beneficio.
-
-## Fuentes
-
-[[fuente-s08-adapter-facade]] (diapositivas 17–21)
+[[mapa-patron-requisito]] · [[cuatro-capas]] · [[patron-factory]] · [[patron-decorator]] ·
+[[patron-singleton]]

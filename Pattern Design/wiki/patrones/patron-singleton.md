@@ -1,106 +1,110 @@
 ---
-tipo: patron
 titulo: Patrón Singleton
-categoria: creacional
-uso_proyecto: candidato
-tags: [patron, creacional]
-creado: 2026-09-04
-actualizado: 2026-09-04
-estado: activo
-fuentes: ["[[fuente-s06-singleton-prototype]]"]
+tipo: patron
+estado: borrador
+fuentes:
+  - Archivos_de_clase/S06_s1-Patrones-Creacionales-SP_DPA.pptx
+  - Archivos_de_clase/S14_s1 - Antipatrones Concepto, Propósito.pptx
+actualizado: 2026-09-06
+tags: [creacional, gof, nucleo, spring]
 ---
 
 # Patrón Singleton
 
-## Definición
+**Familia:** creacional · **Sesión:** [[s06-singleton-prototype]] · **Capa:** Modelo (fijada
+por PC-3) · **Requisito:** [[requisitos]] RF-03 y RC-03
 
-Garantiza que una clase tenga **una única instancia** y proporciona un **punto de acceso
-global** a ella ([[fuente-s06-singleton-prototype]], diapositiva 12). Dos variedades:
-**instanciación temprana** (se construye al cargar la clase) e **instanciación perezosa**
-(sólo cuando se necesita).
+El patrón con más letra chica del proyecto. Encaja, pero hay que aplicarlo con cuidado.
 
-## Problema que resuelve
+## Qué es
 
-Un objeto costoso o que coordina algo global se instancia muchas veces sin querer. El caso
-del curso: `DBConnection` instanciada en cada lugar del código abre una conexión distinta a
-la base de datos cada vez (diapositiva 11).
+"Crea una clase que tenga una única instancia y proporcione un punto de acceso global"
+(S06). Dos variedades: **instanciación temprana** (en la carga) y **perezosa** (solo cuando
+se necesita). El ejemplo canónico del curso es `DBConnection`: sin Singleton se abren
+conexiones redundantes.
 
-## Estructura
+El propio curso reconoce tres desventajas: es complicado en **entornos multihilo**, **viola
+la responsabilidad única** y **dificulta las pruebas unitarias** por el estado global.
 
-```mermaid
-classDiagram
-    class Singleton {
-        -static Singleton instancia
-        -Singleton()
-        +static getInstance() Singleton
-    }
-    Singleton --> Singleton : devuelve la misma
-```
+## Por qué encaja aquí
 
-Participantes: una sola clase, con **constructor privado**, campo estático privado y método
-estático público de acceso.
+Dos usos legítimos:
 
-## Ejemplo del curso
+1. **Catálogo de sedes.** [[requisitos]] RF-03 exige un desplegable con una lista **cerrada
+   de 7 elementos** ([[sedes]]). Es un dato fijo, compartido y de solo lectura: cargarlo una
+   vez y consultarlo desde toda la aplicación es el caso de libro.
+2. **Conexión a base de datos.** RC-03 exige base de datos con stored procedures, y el
+   ejemplo `DBConnection` del curso es literalmente esto.
+
+## Aviso importante con Spring Boot
+
+**Spring ya gestiona los beans como singletons por defecto.** Un `@Service` o `@Component`
+tiene una sola instancia por contenedor, sin escribir `getInstance()`. Escribir el Singleton
+clásico *encima* de Spring para las mismas clases sería redundante — y redundar en Singletons
+es justo la **"Singletonitis"** que [[s14-antipatrones]] señala.
+
+La salida limpia, y que además da material excelente para el informe:
+
+- **`CatalogoSedes` con Singleton clásico**, escrito a mano. Es autocontenido, no necesita
+  inyección de dependencias y demuestra el patrón tal como lo pide [[pc3-entregable]].
+- **La conexión a base de datos se deja a Spring** (`DataSource` con pool), y en el informe
+  se documenta que **Spring aplica el mismo patrón** por debajo. Comparar la versión manual
+  con la del framework es exactamente el tipo de análisis que la entrevista de PC-3
+  premia.
+
+## Diseño propuesto
+
+Versión perezosa y segura en multihilo, resolviendo la desventaja que advierte S06 mediante
+el *holder idiom* (la JVM garantiza que la clase interna se cargue una sola vez):
 
 ```java
-public class Singleton {
-    private static Singleton uniqueInstance;
-    private Singleton() { }                     // impide instanciar desde fuera
-    public static Singleton getInstance() {
-        if (uniqueInstance == null) {           // instanciación perezosa
-            uniqueInstance = new Singleton();
-        }
-        return uniqueInstance;
+public final class CatalogoSedes {
+
+    private final List<Sede> sedes;
+
+    private CatalogoSedes() {                 // constructor privado
+        this.sedes = List.of(
+            new Sede("Los Olivos",  "2W5M+M4", -11.990812, -77.067188),
+            new Sede("La Molina",   "W2JR+RG", -12.067937, -76.958687),
+            new Sede("San Borja",   "VXRX+RG", -12.107938, -77.001188),
+            new Sede("Lince",       "WX87+CM", -12.083937, -77.035812),
+            new Sede("San Miguel",  "WWF4+47", -12.077187, -77.094313),
+            new Sede("Surco",       "R2X6+FC", -12.151312, -76.988937),
+            new Sede("Miraflores",  "VXHC+JF", -12.120938, -77.028813));
+    }
+
+    private static class Holder {
+        private static final CatalogoSedes INSTANCIA = new CatalogoSedes();
+    }
+
+    public static CatalogoSedes getInstancia() {
+        return Holder.INSTANCIA;
+    }
+
+    public List<Sede> todas() { return sedes; }
+
+    public Sede porNombre(String nombre) {
+        return sedes.stream()
+                .filter(s -> s.nombre().equalsIgnoreCase(nombre))
+                .findFirst()
+                .orElseThrow(() -> new SedeDesconocida(nombre));
     }
 }
 ```
 
-([[fuente-s06-singleton-prototype]], diapositiva 15)
+`List.of(...)` devuelve una lista inmutable: nadie puede alterar el catálogo desde fuera, lo
+que neutraliza buena parte del riesgo de estado global.
 
-## Aplicación en Podología Loayza
+> Coordenadas tomadas de [[sedes]], obtenidas ejecutando `tools/pluscode.py`.
 
-> [!warning] Contradicción abierta (2026-09-05)
-> **La rúbrica de PC-3 exige Singleton y Prototype en la capa modelo**
-> ([[fuente-pc2-pc3-entregables]]), y el uso de patrones es el criterio de mayor peso
-> (6 de 20 puntos).
->
-> El análisis de abajo sigue siendo técnicamente correcto, pero **ya no puede aplicarse sin
-> más**: el descarte cuesta puntos. La salida propuesta es aplicarlo donde sí aporte —una
-> configuración de umbrales antifraude cargada una sola vez— y explicar en el informe la
-> diferencia con el alcance *singleton* que da Spring. Decisión pendiente del usuario.
+## Cuidados
 
-**Análisis original — no se implementa a mano.** Es la conclusión menos obvia y la más importante de este
-patrón *(propuesta del agente)*.
+- **Un solo Singleton en todo el sistema.** Si aparece un segundo, revisar si de verdad hace
+  falta o si es Singletonitis.
+- El estado global dificulta las pruebas (S06). Aquí se mitiga porque el catálogo es
+  **inmutable y sin dependencias**: no hay estado que ensuciar entre pruebas.
+- No meterle lógica de negocio. Es un catálogo, no un servicio.
 
-El problema que el Singleton resuelve —una única instancia compartida— **ya lo resuelve el
-contenedor de Spring**: todo bean tiene alcance *singleton* por defecto. Escribir a mano un
-`getInstance()` dentro de una aplicación Spring reproduce el patrón *encima* de un
-mecanismo que ya lo garantiza, y arrastra las tres desventajas que el propio curso enumera
-(diapositiva 14): problemas con múltiples hilos, violación de la responsabilidad única y
-pruebas unitarias muy difíciles.
+## Enlaces
 
-Esa última es decisiva aquí: el sistema tiene que poder probarse con marcaciones falsas,
-relojes falsos y reconocedores faciales falsos. El estado global lo impide.
-
-**Dónde sí aparece, sin escribirlo:** la configuración de umbrales antifraude, el reloj del
-servidor y el motor de reconocimiento facial son instancias únicas — pero como beans
-inyectados, sustituibles en pruebas.
-
-> [!tip] Para el entregable del curso
-> Conviene documentar esta decisión, no esconderla: reconocer que el marco ya provee el
-> patrón y explicar por qué duplicarlo sería un [[antipatrones|antipatrón]] demuestra más
-> criterio que forzar un `getInstance()`.
-
-## Patrones relacionados
-
-[[patron-factory]] (una fábrica suele ser única), [[patron-prototype]] (el opuesto: muchas
-copias en vez de una sola).
-
-## Errores comunes
-
-Usarlo como excusa para tener estado global mutable; olvidar la seguridad entre hilos en la
-versión perezosa; convertirlo en un contenedor de servicios que lo sabe todo.
-
-## Fuentes
-
-[[fuente-s06-singleton-prototype]] (diapositivas 11–16)
+[[mapa-patron-requisito]] · [[sedes]] · [[s14-antipatrones]] · [[patron-facade]]

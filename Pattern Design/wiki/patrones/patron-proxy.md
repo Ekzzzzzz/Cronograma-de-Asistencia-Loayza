@@ -1,99 +1,108 @@
 ---
-tipo: patron
 titulo: Patrón Proxy
-categoria: estructural
-uso_proyecto: candidato
-tags: [patron, estructural]
-creado: 2026-09-04
-actualizado: 2026-09-04
-estado: activo
-fuentes: ["[[fuente-s11-proxy-bridge]]"]
+tipo: patron
+estado: borrador
+fuentes:
+  - Archivos_de_clase/S11_s1 - Patrones estrucuturales_Proxy_Bridge (2)_EIHIXN.pptx
+  - Archivos_de_clase/S15_s1s2 - PC-3-DPA.pdf
+actualizado: 2026-09-06
+tags: [estructural, gof, nucleo, spring]
 ---
 
 # Patrón Proxy
 
-## Definición
+**Familia:** estructural · **Sesión:** [[s11-proxy-bridge]] · **Capa:** Vista (fijada por
+PC-3) · **Requisito:** [[requisitos]] RF-10 y RF-11
 
-Proporciona un **sustituto o marcador de posición** de otro objeto para **controlar el
-acceso** a él ([[fuente-s11-proxy-bridge]], diapositiva 10).
+## Qué es
 
-## Problema que resuelve
+"Proporciona un sustituto o marcador de posición para otro objeto **para controlar el
+acceso** a él". S11 distingue cuatro tipos; dos nos sirven:
 
-Hace falta interponer algo entre el cliente y el objeto real: permisos, carga diferida,
-acceso remoto o contabilidad de recursos.
+| Tipo | Para qué |
+|---|---|
+| **Virtual Proxy** | Retrasa la creación y carga del objeto hasta que sea necesario |
+| **Protection Proxy** | Controla el acceso, con permisos distintos por usuario |
 
-## Los cuatro tipos, según el curso
+Frente a [[patron-decorator]], que es estructuralmente igual: en Decorator al cliente le
+interesa *lo que se agrega*; en Proxy, *el objeto agregado*.
 
-| Tipo | Para qué | ¿Aplica aquí? |
-|---|---|---|
-| **Virtual Proxy** | Retrasa la creación y carga del objeto hasta que se necesite | **Sí** |
-| **Protection Proxy** | Controla el acceso, con permisos distintos por usuario | **Sí** |
-| **Remote Proxy** | Proxy local de un objeto en otro espacio de direcciones | No |
-| **Smart Proxy** | Seguimiento de referencias, contabilidad de recursos | Quizá |
+## Por qué encaja aquí
 
-([[fuente-s11-proxy-bridge]], diapositiva 15)
+Encaja por partida doble, con dos necesidades **realmente distintas** — no es el mismo
+patrón estirado dos veces:
 
-## Estructura
+1. **Protection Proxy para el dashboard.** [[requisitos]] RF-01 dice que la trabajadora entra
+   por un enlace general **sin login**. El dashboard de administradora (RF-11) no puede tener
+   esa misma puerta abierta: expone fotos y horarios de todo el personal.
+2. **Virtual Proxy para las fotos.** RF-10 guarda una foto por marcación. Con 7 sedes y
+   varias marcaciones diarias por trabajadora, un mes son miles de imágenes. El dashboard
+   debe listar las marcaciones **sin cargar las imágenes**, y traer cada una solo al abrirla.
 
-```mermaid
-classDiagram
-    class Sujeto {
-        <<interface>>
-        +solicitud()
+## Diseño propuesto
+
+```java
+public interface RepositorioFotos {
+    BufferedImage obtener(long idFoto);
+}
+
+// Implementación real: va al disco o a la base de datos
+public class RepositorioFotosReal implements RepositorioFotos {
+    @Override
+    public BufferedImage obtener(long idFoto) { /* lectura costosa */ }
+}
+
+// Virtual Proxy: no toca el almacenamiento hasta que alguien pide de verdad la imagen
+public class RepositorioFotosProxy implements RepositorioFotos {
+
+    private final RepositorioFotosReal real;
+    private final Map<Long, BufferedImage> cache = new ConcurrentHashMap<>();
+
+    @Override
+    public BufferedImage obtener(long idFoto) {
+        return cache.computeIfAbsent(idFoto, real::obtener);
     }
-    class SujetoReal {
-        +solicitud()
-    }
-    class Proxy {
-        -SujetoReal real
-        +solicitud()
-    }
-    Sujeto <|.. SujetoReal
-    Sujeto <|.. Proxy
-    Proxy --> SujetoReal : controla el acceso
+}
 ```
 
-Cómo aplicarlo (diapositiva 14): identificar el objeto que necesita control, crear un Proxy
-**con la misma interfaz**, y delegar añadiendo la funcionalidad extra.
+Y el de protección sobre el dashboard:
 
-## Ejemplo del curso
+```java
+public class DashboardProtectionProxy implements ServicioDashboard {
 
-> [!warning] Sin código en la fuente
-> S11 no trae ejemplo en Java. Está en `S11-Ejemplo-MVC-Proxy-Bridge.docx`, sin ingerir.
+    private final ServicioDashboard real;
+    private final SesionAdministradora sesion;
 
-## Aplicación en Podología Loayza
+    @Override
+    public List<MarcacionResumen> marcacionesDe(Sede sede, LocalDate dia) {
+        if (!sesion.esAdministradora())
+            throw new AccesoDenegado("Solo la administradora puede ver el dashboard.");
+        return real.marcacionesDe(sede, dia);
+    }
+}
+```
 
-**Candidato fuerte, y el único patrón que responde directamente a una obligación legal**
-*(propuesta del agente)*.
+## Nota sobre Spring Boot
 
-**1. Protection Proxy sobre las fotos y las plantillas biométricas.** El sistema almacena
-rostros de personas reales: `CLAUDE.md` §8 exige acceso restringido. Un proxy delante del
-almacén de evidencias comprueba el rol antes de entregar nada —una trabajadora sólo ve sus
-propias marcaciones, la administradora ve las de su ámbito— y **deja registro de cada
-acceso**. Como tiene la misma interfaz que el almacén real, ningún otro componente cambia.
+**Spring usa Proxy internamente**: `@Transactional`, `@Cacheable` y Spring Security funcionan
+creando proxies dinámicos alrededor de los beans. Sería perfectamente válido resolver el
+control de acceso con `@PreAuthorize` y la caché con `@Cacheable`.
 
-Que esta comprobación viva en un proxy y no repartida por el código es lo que hace que la
-garantía sea verificable: hay **un** sitio donde mirar.
+Para [[pc3-entregable]] conviene **escribir los proxies a mano**, porque el informe pide
+capturas de código que demuestren el patrón y una anotación no lo muestra. Pero mencionar en
+el informe que el framework aplica el mismo patrón por debajo es un buen punto para la
+entrevista.
 
-**2. Virtual Proxy sobre las imágenes.** Una marcación se consulta muchas veces —para
-conteos, para la rejilla, para reglas— y su foto casi nunca se necesita. Cargar el blob cada
-vez sería un desperdicio. El proxy entrega los metadatos al instante y trae la imagen sólo
-cuando alguien la pide de verdad, al abrir la cola de revisión.
+## Cuidados
 
-**Distinción con [[patron-decorator]]**, que el curso subraya: aquí el interés del cliente
-está en el **objeto agregado** (quiere la evidencia, y el proxy media el acceso). En el
-Decorator, el interés está en lo que se añade.
+- El caché del Virtual Proxy **crece sin límite** tal como está escrito. Para producción hay
+  que acotarlo por tamaño o tiempo.
+- S11 advierte que Proxy añade indirección, complica la depuración y puede introducir
+  latencia. Con dos proxies bien delimitados el costo es asumible.
+- **El Protection Proxy no sustituye a la autenticación real.** Es la puerta, no la
+  cerradura: hace falta decidir cómo se autentica la administradora — pregunta 2 de
+  [[huecos-abiertos]].
 
-## Patrones relacionados
+## Enlaces
 
-[[patron-decorator]] (misma estructura, otra intención), [[patron-adapter]] (traduce en vez
-de controlar), [[patron-facade]].
-
-## Errores comunes
-
-Que el proxy y el objeto real dejen de compartir interfaz; meter lógica de negocio en él;
-usar un Virtual Proxy donde la carga diferida no ahorra nada.
-
-## Fuentes
-
-[[fuente-s11-proxy-bridge]] (diapositivas 10–17)
+[[mapa-patron-requisito]] · [[cuatro-capas]] · [[patron-decorator]] · [[huecos-abiertos]]
