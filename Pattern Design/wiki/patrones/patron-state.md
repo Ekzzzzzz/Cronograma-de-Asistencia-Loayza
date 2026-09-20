@@ -1,12 +1,12 @@
 ---
 titulo: Patrón State
 tipo: patron
-estado: borrador
+estado: obsoleto
 fuentes:
   - Archivos_de_clase/S12_s1 - Patrones comportamiento_State_Observer_DPA.pptx
   - docs/Cronograma_Ejemplo.xlsx
 actualizado: 2026-09-06
-tags: [comportamiento, gof, nucleo, no-obligatorio]
+tags: [comportamiento, gof, descartado, antipatrones]
 ---
 
 # Patrón State
@@ -14,8 +14,35 @@ tags: [comportamiento, gof, nucleo, no-obligatorio]
 **Familia:** comportamiento · **Sesión:** [[s12-state-observer]] · **Capa:** Modelo ·
 **Requisito:** [[requisitos]] RF-09 y RF-12
 
-**No lo exige [[pc3-entregable]]**, y aun así entra al núcleo: resuelve un problema que
-ningún patrón obligatorio cubre.
+> ## ⚠️ Patrón descartado (2026-09-06)
+>
+> **Esta página se conserva como evidencia del descarte, no como diseño a implementar.**
+>
+> State entró al núcleo con una justificación concreta: resolvía la entrada sin salida **y**
+> los tres marcadores del Excel, y esta misma página argumentaba que "contando todo son siete
+> estados, así que la advertencia de S12 sobre pocos estados no aplica".
+>
+> El 2026-09-06 el usuario fijó que `DESCANSO`, `NO TURNO`, `INASISTENCIA` y las tardanzas
+> **se manejan a mano fuera del sistema**, y que la celda del cronograma solo lleva horas. Eso
+> borró cinco de los siete estados. Quedan dos —turno abierto y turno cerrado— y
+> [[s12-state-observer]] advierte que State "puede ser excesivo si solo hay pocos estados".
+>
+> Por el criterio del proyecto —**¿el código queda más limpio con el patrón que sin él?**—
+> la respuesta pasó a ser no: un `salida == null` dentro de `Turno` es más claro que dos
+> clases de estado con transiciones. Conservarlo por inercia habría sido **Golden Hammer**
+> ([[s14-antipatrones]]).
+>
+> **Su lugar en el núcleo lo ocupa [[patron-observer]]**, que mantiene la familia de
+> comportamiento que exige [[pc3-entregable]] con una justificación más sólida.
+>
+> Razón completa en [[adr-003-login-y-cronograma-simple]]. El diseño vigente del turno está
+> en [[marcacion-multiple]].
+>
+> **Por qué vale la pena leerla igual:** es el único patrón del proyecto que se descartó
+> *después* de haberse aceptado, porque un cambio de requisitos le quitó el sustento. Los
+> otros siete se descartaron en el análisis inicial. Eso lo convierte en el mejor material
+> para el capítulo de antipatrones con evidencias que pide PC-3 (RC-06), y en una buena
+> respuesta para la entrevista.
 
 ## Qué es
 
@@ -126,13 +153,23 @@ public class Jornada implements ComponenteCronograma {
 - `etiquetaCronograma()` es lo que [[patron-composite]] necesita para llenar la celda, y
   cierra el hueco que esa página dejaba abierto.
 
-## Hueco que sigue abierto
+## Qué pasó con el hueco que esta página iba a cerrar
 
-Distinguir `DESCANSO` de `NO TURNO` e `INASISTENCIA` **requiere un cronograma planificado**
-que hoy no existe en los requisitos. State provee la estructura; falta el dato. Pregunta 3
-de [[huecos-abiertos]].
+Todo lo de arriba está **superado**. Se conserva tal como se escribió porque el valor de esta
+página es documental.
+
+Distinguir `DESCANSO` de `NO TURNO` e `INASISTENCIA` requería un cronograma planificado que el
+sistema no tenía. Durante unas horas del 2026-09-06 la solución fue una tabla
+`turno_planificado` en [[modelo-datos]] y una pantalla para llenarla.
+
+**Esa solución nunca se construyó.** El usuario cerró el hueco por la vía más barata: esos
+casos se manejan **a mano, fuera del sistema**. Con ellos desaparecieron la tabla, la pantalla
+y los cinco estados que sostenían este patrón.
+
+Es la lección que conviene contar en el informe: **el hueco no se cerró con más diseño, sino
+con menos alcance**, y el patrón que se había aceptado para cubrirlo dejó de tener trabajo.
 
 ## Enlaces
 
-[[mapa-patron-requisito]] · [[patron-composite]] · [[formato-cronograma-excel]] ·
-[[huecos-abiertos]]
+[[adr-003-login-y-cronograma-simple]] · [[patron-observer]] · [[marcacion-multiple]] ·
+[[mapa-patron-requisito]] · [[s14-antipatrones]]

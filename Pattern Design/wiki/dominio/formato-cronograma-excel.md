@@ -4,7 +4,7 @@ tipo: dominio
 estado: estable
 fuentes:
   - docs/Cronograma_Ejemplo.xlsx
-actualizado: 2026-09-05
+actualizado: 2026-09-06
 tags: [dominio, excel, exportacion]
 ---
 
@@ -21,6 +21,10 @@ reproducir. Estructura verificada descomprimiendo `docs/Cronograma_Ejemplo.xlsx`
 | 2 | Mes, celdas `B2:I2` combinadas. En el ejemplo: `MAYO` |
 | 3 | Título, celdas `B3:I3` combinadas: `HORARIO PERSONAL LOS OLIVOS` |
 | 4 | Encabezados: `B4 = PODOLOGA`, y `C4:I4` los siete días |
+
+> **Cambia el 2026-09-06** con [[adr-006-dashboard-y-turnos-multiples]]: no todas las
+> trabajadoras son podólogas, también hay **cajeras**. El encabezado pasa a `TRABAJADORA` y se
+> añade una columna `CARGO`; van todas en la misma tabla, no en hojas separadas.
 | 5+ | Una fila por podóloga: `B` el nombre, `C:I` la jornada de cada día |
 
 Los encabezados de día llevan día de semana **y número**: `LUNES 25`, `MARTES 26`,
@@ -32,8 +36,17 @@ una tabla mensual completa.
 
 Cada celda es **texto**, no hora. Dos formas posibles:
 
-1. **Jornada trabajada**: `entrada - salida`, por ejemplo `10:12AM - 8:46PM`.
-2. **Marcador de estado**, uno de: `DESCANSO`, `NO TURNO`, `INASISTENCIA`.
+1. **Jornada trabajada**: `entrada - salida`, por ejemplo `10:12AM - 8:46PM`. Desde
+   [[adr-006-dashboard-y-turnos-multiples]], **hasta seis pares, uno por línea**, con salto de
+   línea dentro de la celda y ajuste de texto activado:
+
+   ```
+   9:00AM - 1:00PM
+   3:00PM - 8:00PM
+   ```
+
+2. **Marcador de estado**, uno de: `DESCANSO`, `NO TURNO`, `INASISTENCIA`. **El sistema no los
+   escribe**: los pone la administradora a mano sobre el archivo exportado.
 
 Podólogas presentes en el ejemplo: DANIELA, LEYDI, NADIA, NERY, CARMEN, DORA, ROXANA,
 JAZMIN, EVELYN, JESSICA CASAFRANCA, ALANA JAUDI, MARIA TARAZONA, JANET.
@@ -58,10 +71,14 @@ viejos como estos:
 - La celda de jornada es una **derivación**, no un dato: hay que emparejar la marcación de
   entrada con la de salida de esa trabajadora, ese día y esa sede. Con
   [[marcacion-multiple]] el emparejamiento no es trivial.
-- Un `DESCANSO` o `NO TURNO` es "ausencia de marcaciones", pero el sistema no puede
+- Un `DESCANSO` o `NO TURNO` es "ausencia de marcaciones", y el sistema no puede
   distinguir por sí solo entre descanso programado, no turno e inasistencia: son tres
   estados distintos en el Excel y ninguno se deduce de los datos de marcación.
 
-  > **Hueco:** ¿cómo se determina cuál de los tres corresponde? Requiere un cronograma
-  > planificado, que hoy no existe en los requisitos. Anotado en [[huecos-abiertos]].
+  > **Resuelto el 2026-09-06 por reducción de alcance.** El sistema **no los escribe**. Genera
+  > únicamente celdas con horas (`10:12AM - 8:46PM`) y deja vacías las demás; `DESCANSO`,
+  > `NO TURNO`, `INASISTENCIA` y las tardanzas los pone la administradora a mano sobre el
+  > archivo exportado. Ver [[adr-003-login-y-cronograma-simple]].
+  >
+  > Ese recorte eliminó una tabla, una pantalla y el patrón [[patron-state]].
 - La exportación es **por sede y por semana**, no por mes.

@@ -96,4 +96,4 @@ Abstract Factory quedó descartado en [[mapa-patron-requisito]].
 
 ## Enlaces
 
-[[mapa-patron-requisito]] · [[cuatro-capas]] · [[patron-facade]] · [[patron-state]]
+[[mapa-patron-requisito]] · [[cuatro-capas]] · [[patron-facade]] · [[marcacion-multiple]]

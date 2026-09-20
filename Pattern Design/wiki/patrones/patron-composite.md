@@ -14,6 +14,13 @@ tags: [estructural, gof, nucleo]
 **Familia:** estructural · **Sesión:** [[s09-decorator-composite]] · **Capa:** sin asignar
 por PC-3; se propone **Modelo** · **Requisito:** [[requisitos]] RF-12
 
+> **Corrección pendiente de aplicar (2026-09-06).** La jerarquía de esta página **está
+> incompleta**: le falta el nivel `Turno` entre `Jornada` y `Marcacion`. Sin él, una jornada
+> partida (entrar a las 9, salir a la 1, volver a las 3) no se puede representar, y
+> `Marcacion` sigue devolviendo `Duration.ZERO` — una violación de ISP. El diseño corregido
+> está en [[marcacion-multiple]]; el código de abajo hay que reescribirlo antes de
+> implementarlo.
+
 ## Qué es
 
 Trata de manera uniforme objetos individuales y composiciones, en relaciones **parte-todo**.
@@ -93,10 +100,11 @@ public class Jornada implements ComponenteCronograma {
   operaciones que no le corresponden del todo.
 - **El emparejamiento entrada–salida no es trivial** con marcación múltiple entre sedes. Ver
   el hueco en [[formato-cronograma-excel]].
-- Los estados `DESCANSO`, `NO TURNO` e `INASISTENCIA` **no** salen de esta jerarquía: son
-  ausencia de marcaciones. Los resuelve [[patron-state]].
+- Los estados `DESCANSO`, `NO TURNO` e `INASISTENCIA` **no** salen de esta jerarquía, y
+  tampoco los escribe el sistema: desde [[adr-003-login-y-cronograma-simple]] los anota la
+  administradora a mano. Si no hay marcaciones, la celda va vacía.
 
 ## Enlaces
 
-[[mapa-patron-requisito]] · [[formato-cronograma-excel]] · [[patron-state]] ·
+[[mapa-patron-requisito]] · [[marcacion-multiple]] · [[formato-cronograma-excel]] ·
 [[patron-decorator]]

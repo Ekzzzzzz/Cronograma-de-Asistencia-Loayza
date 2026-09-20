@@ -35,6 +35,11 @@ patrón estirado dos veces:
 1. **Protection Proxy para el dashboard.** [[requisitos]] RF-01 dice que la trabajadora entra
    por un enlace general **sin login**. El dashboard de administradora (RF-11) no puede tener
    esa misma puerta abierta: expone fotos y horarios de todo el personal.
+
+   > **Y un segundo uso, en el lado público** ([[adr-007-seguridad-endpoint-publico]]): las
+   > barreras contra abuso —cooldown por trabajadora y tope diario— también son control de
+   > acceso delante del caso de uso real. Que el mismo patrón sirva a dos necesidades
+   > genuinamente distintas **refuerza su justificación en vez de estirarla**.
 2. **Virtual Proxy para las fotos.** RF-10 guarda una foto por marcación. Con 7 sedes y
    varias marcaciones diarias por trabajadora, un mes son miles de imágenes. El dashboard
    debe listar las marcaciones **sin cargar las imágenes**, y traer cada una solo al abrirla.
@@ -100,8 +105,13 @@ entrevista.
 - S11 advierte que Proxy añade indirección, complica la depuración y puede introducir
   latencia. Con dos proxies bien delimitados el costo es asumible.
 - **El Protection Proxy no sustituye a la autenticación real.** Es la puerta, no la
-  cerradura: hace falta decidir cómo se autentica la administradora — pregunta 2 de
-  [[huecos-abiertos]].
+  cerradura. Desde [[adr-003-login-y-cronograma-simple]] la cerradura existe: **Spring
+  Security con contraseñas BCrypt** sobre la tabla `administrador` de [[modelo-datos]]. El
+  proxy consulta esa sesión; no la crea.
+
+  Eso refuerza el patrón: mientras no había login, `SesionAdministradora` era un objeto
+  ficticio y el proxy protegía un recurso que en realidad estaba abierto. Ahora protege algo
+  que de verdad tiene dueño.
 
 ## Enlaces
 

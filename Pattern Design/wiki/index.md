@@ -2,7 +2,7 @@
 titulo: Índice del wiki
 tipo: sintesis
 estado: borrador
-actualizado: 2026-09-05
+actualizado: 2026-09-06
 tags: [indice]
 ---
 
@@ -26,18 +26,22 @@ actualiza con **toda** página nueva. La vista cronológica está en [[log]].
 | [[requisitos]] | RF-01…RF-13 y RNF-01…RNF-04 derivados del brief del usuario. |
 | [[sedes]] | Las 7 sedes de Lima y sus Plus Codes. |
 | [[formato-cronograma-excel]] | Estructura verificada del Excel que la exportación debe reproducir. |
+| [[marcacion-multiple]] | La regla central: N turnos por día y sede. Introduce el nivel `Turno`. |
 
 ## Síntesis
 
 | Página | Resumen |
 |---|---|
 | [[huecos-abiertos]] | Bloqueos del entorno, preguntas para el usuario y decisiones pendientes. |
-| [[mapa-patron-requisito]] | Evaluación de encaje de los 15 patrones del curso: 7 de núcleo, 5 de periferia, 3 descartes. |
+| [[mapa-patron-requisito]] | Evaluación de encaje de los 15 patrones del curso: 6 de núcleo, 7 descartes, Adapter según alcance. |
+| [[patrones-en-cristiano]] | Cada patrón explicado sin jerga: qué hace, dónde entra y qué pasaría sin él. Material para el informe y la entrevista. |
 
 ## Patrones
 
-**Los siete que se implementan**, confirmados en [[adr-001-patrones-seleccionados]]. Los seis
-descartados no tienen página: su razón vive en [[mapa-patron-requisito]].
+**Los siete que se implementan**, confirmados en [[adr-001-patrones-seleccionados]] y
+revisados en [[adr-003-login-y-cronograma-simple]]. Cubren las tres familias que exige PC-3.
+De los siete descartados, solo State tiene página: los otros seis viven en
+[[mapa-patron-requisito]].
 
 | Página | Resumen |
 |---|---|
@@ -47,13 +51,16 @@ descartados no tienen página: su razón vive en [[mapa-patron-requisito]].
 | [[patron-facade]] | `RegistrarMarcacion`: un solo punto de entrada para los cinco pasos del envío. |
 | [[patron-proxy]] | Protection para el dashboard y Virtual para las fotos. |
 | [[patron-singleton]] | Catálogo de las 7 sedes, con la letra chica de Spring y la Singletonitis. |
-| [[patron-state]] | Estados de la jornada y las etiquetas del cronograma. No obligatorio, entra igual. |
+| [[patron-observer]] | Recalculo de la jornada y refresco del dashboard al registrar. Única familia de comportamiento. |
+| [[patron-state]] | ⚠️ **Descartado el 2026-09-06.** Se conserva como evidencia para el capítulo de antipatrones. |
 
 ## Arquitectura
 
 | Página | Resumen |
 |---|---|
 | [[cuatro-capas]] | Vista / Control / Modelo / BD, con el reparto de patrones que fija PC-3. |
+| [[modelo-datos]] | Esquema MySQL 8: cinco tablas, índices y stored procedures. |
+| [[estructura-repositorio]] | Las carpetas del entregable, los paquetes por capa y por qué se llaman así. |
 
 ## Decisiones
 
@@ -61,6 +68,15 @@ descartados no tienen página: su razón vive en [[mapa-patron-requisito]].
 |---|---|
 | [[decisiones]] | Índice de ADRs y lista de lo que sigue pendiente de decidir. |
 | [[adr-001-patrones-seleccionados]] | Spring Boot, núcleo de 7 patrones, periferia de 5, 3 descartes. |
+| [[adr-002-arquitectura-produccion]] | MySQL 8, fotos en disco, VPS, lista cerrada de trabajadoras y estrategia de rendimiento. |
+| [[adr-003-login-y-cronograma-simple]] | Login de administrador, celda solo con horas, State descartado y Observer al núcleo. |
+| [[adr-004-despliegue-azure]] | Una VM B1s con todo dentro, fotos a Blob Storage y el crédito de 100 USD dimensionado. |
+| [[adr-005-hosting-largo-plazo]] | Azure para el curso, Oracle Always Free para producción. ODS 8 y equipo de dos. |
+| [[adr-006-dashboard-y-turnos-multiples]] | Seis funciones del dashboard, hasta 6 pares por celda, cargos y correcciones trazables. |
+| [[adr-007-seguridad-endpoint-publico]] | Cuatro barreras contra el abuso del formulario público, y jornada completa o media. |
+| [[adr-008-alcance-interfaz-y-cola-sin-senal]] | Doce huecos cerrados de golpe, reconciliación con el prototipo, cola sin señal y la pila de la interfaz. |
+| [[adr-009-estructura-y-dos-patrones-que-vuelven]] | Bridge y Command vuelven, la estructura del entregable y el plan a cuatro semanas. |
+| [[adr-010-sin-rechazos-oracle-y-nombre-libre]] | El sistema deja de rechazar marcaciones, se puede escribir el nombre, y la plataforma pasa a ser Oracle. |
 
 ## Fuentes
 
@@ -152,9 +168,9 @@ Estado: `pendiente` (legible, sin ingerir) · `bloqueado` (no legible en este en
 
 Páginas ya referenciadas desde el wiki que aún no existen. Son trabajo señalado, no errores:
 
-- `[[marcacion-multiple]]` — la regla de negocio central (N marcaciones por día y sede).
-- `[[patron-observer]]` y `[[patron-adapter]]` — los dos candidatos que dependen del alcance
-  ([[adr-001-patrones-seleccionados]]). Se escriben solo si se decide implementarlos.
+- `[[patron-adapter]]` — depende de si se importan los Excel históricos
+  ([[adr-001-patrones-seleccionados]], pregunta 12 de [[huecos-abiertos]]).
 
 Bridge, Command, Builder, Prototype, Abstract Factory y Memento **no tendrán página**: están
-descartados, y su razón vive en [[mapa-patron-requisito]].
+descartados, y su razón vive en [[mapa-patron-requisito]]. State sí la tiene, porque se
+descartó *después* de haberse aceptado.

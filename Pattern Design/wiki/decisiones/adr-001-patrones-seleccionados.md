@@ -13,7 +13,15 @@ tags: [adr, decision, patrones, spring]
 
 # ADR-001 — Patrones seleccionados y stack
 
-**Fecha:** 2026-09-06 · **Estado:** aceptada
+**Fecha:** 2026-09-06 · **Estado:** aceptada, **parcialmente superada por
+[[adr-003-login-y-cronograma-simple]]**
+
+> **Qué sigue vigente y qué no.** El stack, el criterio de selección, los seis descartes
+> originales y las notas sobre lo que Spring aporta **siguen vigentes**. Lo que cambió es la
+> composición: [[patron-state]] fue descartado y [[patron-observer]] subió de la periferia al
+> núcleo, así que **el núcleo sigue siendo de siete patrones, pero no los mismos siete**.
+> Salió State, entró Observer. El razonamiento está en el ADR-003; esta página se conserva sin
+> reescribir, como registro de lo que se decidió y con qué información.
 
 ## Contexto
 
@@ -37,7 +45,7 @@ Confirmado por el usuario el 2026-09-06, en línea con [[requisitos]] RNF-03. Se
 restricción RC-03 de [[cuatro-capas]]: base de datos con **scripts y stored procedures**, no
 un diseño solo-ORM.
 
-### 2. Núcleo de siete patrones
+### 2. Núcleo de siete patrones *(hoy seis: ver la nota de cabecera)*
 
 Se implementan a fondo y se documentan en el informe:
 

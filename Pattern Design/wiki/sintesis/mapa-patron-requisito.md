@@ -13,7 +13,7 @@ fuentes:
   - Archivos_de_clase/S13_s1 - Patrones comportamiento_Command_Memento.pptx
   - Archivos_de_clase/S14_s1 - Antipatrones Concepto, Propósito.pptx
   - brief del usuario (2026-09-05)
-actualizado: 2026-09-05
+actualizado: 2026-09-06
 tags: [patrones, requisitos, mapa, decision]
 ---
 
@@ -56,7 +56,13 @@ Estos siete se sostienen solos. Son los que conviene desarrollar a fondo en el i
 | **Facade** | `RegistrarMarcacion`: valida, sella la foto, persiste y guarda notas tras una sola llamada | RF-05…RF-08 | Control |
 | **Proxy** | *Protection* para el dashboard de administradora; *Virtual* para cargar las fotos solo al abrirlas | RF-10, RF-11 | Vista |
 | **Singleton** | Catálogo fijo de las 7 sedes y conexión a base de datos | RF-03, RC-03 | Modelo |
-| **State** | Estados de la jornada: `SIN_INICIAR → ABIERTA → CERRADA`, más `INCOMPLETA`, `DESCANSO`, `NO TURNO`, `INASISTENCIA` | RF-09, RF-12 | Modelo |
+| **Observer** | Recalcular la jornada y refrescar el dashboard al registrar una marcación | RF-11, RF-12 | Vista |
+
+> **Revisión del 2026-09-06.** Esta tabla tenía siete filas: **State** ocupaba el lugar que hoy
+> tiene Observer. Al fijarse que `DESCANSO`, `NO TURNO` e `INASISTENCIA` se manejan a mano
+> ([[adr-003-login-y-cronograma-simple]]), State pasó de siete estados a dos y perdió su
+> justificación. Observer sube de la periferia para mantener la familia de comportamiento.
+> Detalle en [[patron-state]] y [[patron-observer]].
 
 Por qué estos:
 
@@ -71,10 +77,10 @@ Por qué estos:
   [[s07-factory-abstractfactory-builder]] es estructuralmente idéntico a entrada/salida.
 - **Proxy justifica sus dos tipos** —protección y carga diferida— con dos necesidades reales
   distintas, no con una excusa estirada.
-- **State no lo pide PC-3 y aun así entra**, porque resuelve un hueco abierto: qué hacer con
-  una entrada sin salida, y cómo representar `DESCANSO` / `NO TURNO` / `INASISTENCIA`. La
-  desventaja que advierte [[s12-state-observer]] —"excesivo si hay pocos estados"— no aplica
-  con seis estados.
+- **Observer no lo pide PC-3 en la capa donde lo usamos, y entra igual**: sin él,
+  [[patron-facade]] tendría que conocer al recalculador de jornadas y al dashboard, y crecería
+  con cada efecto nuevo. Es además el **único patrón de comportamiento** del proyecto, y PC-3
+  exige desarrollar las tres familias.
 
 ## Periferia — evaluada bajo el criterio de código limpio
 
@@ -84,7 +90,7 @@ sobreviven.
 
 | Patrón | Uso posible | ¿Limpia o ensucia? | Veredicto |
 |---|---|---|---|
-| **Observer** | Refrescar dashboard y recalcular la fila del cronograma al entrar una marcación | **Limpia.** Evita que la fachada de registro conozca al dashboard. Y Spring lo da casi gratis con `ApplicationEventPublisher` | **sí, si hay tiempo** |
+| **Observer** | Refrescar dashboard y recalcular la fila del cronograma al entrar una marcación | **Limpia.** Evita que la fachada de registro conozca al dashboard. Y Spring lo da casi gratis con `ApplicationEventPublisher` | **promovido al núcleo (2026-09-06)** |
 | **Adapter** | Importar los Excel viejos, con sus formatos irregulares, al modelo nuevo | **Limpia**, pero solo si importar el histórico está en el alcance. Aísla el parseo sucio en una clase | **depende del alcance** |
 | **Bridge** | Separar el reporte de su formato de salida | **Ensucia.** Con dos formatos añade una jerarquía doble sin la explosión de clases que el patrón viene a evitar | no |
 | **Command** | `MarcarEntrada` / `MarcarSalida` como comandos | **Ensucia.** Se solapa con Factory y Facade. Solo se gana el undo, que nadie pidió | no |
@@ -119,13 +125,21 @@ costosa o compleja", y una marcación no lo es.
 
 ## Cuentas
 
-- **Se implementan: 7 patrones** (el núcleo) · **candidatos según alcance: 2** (Observer y
-  Adapter) · **descartados: 6** (Prototype, Abstract Factory, Memento, Bridge, Command,
-  Builder).
-- **State entra sin ser obligatorio** para PC-3, porque resuelve un problema real que ningún
-  patrón obligatorio cubre.
-- Siete patrones bien aplicados, de tres familias —creacionales, estructurales y de
-  comportamiento—, cubren lo que el curso pide demostrar sin inflar el diseño.
+Actualizadas tras [[adr-003-login-y-cronograma-simple]]:
+
+- **Se implementan: 7 patrones.** Creacionales: Singleton y Factory. Estructurales: Decorator,
+  Composite, Facade y Proxy. Comportamiento: Observer. *(Corregido el 2026-09-06: esta línea
+  decía 6 y enumeraba 7.)*
+- **Candidato según alcance: 1** — Adapter, solo si se importan los Excel históricos.
+- **Descartados: 7** — Prototype, Abstract Factory, Memento, Bridge, Command, Builder y
+  **State**.
+- **7 + 7 + 1 = 15.** Las cuentas cierran contra los quince patrones del curso.
+- De los **diez que nombra PC-3 implementamos siete**; faltan Prototype, Bridge y Command, los
+  tres con descarte documentado.
+
+**El descarte de State se cuenta aparte de los otros seis.** Los demás nunca entraron; State
+fue aceptado, diseñado, y descartado cuando un cambio de requisitos le quitó el problema que
+resolvía. Es la evidencia más fuerte del proyecto para el capítulo de antipatrones (RC-06).
 
 ## Pendiente
 

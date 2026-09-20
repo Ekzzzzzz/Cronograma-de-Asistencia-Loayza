@@ -335,3 +335,545 @@ capítulo de antipatrones, donde son contenido válido en vez de omisiones.
 el código**. Nombres, responsabilidades únicas, separación de capas y ausencia de duplicación
 pesan tanto como los patrones. Eso vuelve relevante el material de principios de diseño
 (S01–S04 y el ISP que pide PC-3), aún sin ingerir.
+
+## [2026-09-06] decision | ADR-002 — el proyecto pasa a ser producción real
+
+El usuario fijó una restricción que cambia el encuadre: **el sistema no es solo un entregable
+de curso, tiene que quedar listo para producción** en una empresa real con 7 sedes y personal
+numeroso, y el requisito explícito es que **sea rápido con los datos**.
+
+**Creado:** [[adr-002-arquitectura-produccion]], [[modelo-datos]] y [[marcacion-multiple]]
+— esta última llevaba tres páginas enlazándola sin existir.
+
+**Lo primero fue dimensionar, y el resultado reordena las prioridades.** Extrapolando de las
+13 podólogas que lista `docs/Cronograma_Ejemplo.xlsx`: ~140 trabajadoras, ~400 marcaciones
+diarias, **~150 000 filas al año**. Eso es poco: cualquier consulta sobre esa tabla se
+resuelve en milisegundos con el índice correcto. **El cuello de botella son las imágenes**
+—~600 GB/año sin comprimir, ~30 GB comprimidas— y sobre todo el tiempo de subida en red
+móvil. Optimizar la tabla de marcaciones habría sido el Overengineering de
+[[s14-antipatrones]]; el trabajo real estaba en otro lado.
+
+**Decisiones del usuario (cinco):** MySQL 8 como motor · fotos en disco con la ruta en base,
+nunca como BLOB · despliegue en VPS en la nube · identidad por **lista desplegable cerrada** ·
+retención de 3 meses en tamaño completo con miniatura permanente.
+
+**Hallazgos que no estaban en el wiki:**
+
+- **HTTPS es un requisito funcional encubierto**, no de infraestructura: sin certificado el
+  navegador móvil no concede acceso a la cámara y RF-05 deja de funcionar.
+- **Comprimir la foto en el navegador antes de subirla** es la medida de mayor impacto de
+  todas: 15–30 segundos de espera en 4G bajan a 1–2. Y no rompe la garantía anti-fraude,
+  porque el sello de hora lo sigue poniendo el servidor.
+- **La tabla `jornada_diaria` entra por corrección, no por velocidad.** `DESCANSO`,
+  `NO TURNO` e `INASISTENCIA` no se derivan de las marcaciones; esa tabla es donde persiste
+  el resultado de [[patron-state]]. Que además vuelva el cronograma un SELECT de ~91 filas es
+  beneficio gratis.
+- **Aparece `turno_planificado`**, la entidad que faltaba para distinguir esos tres estados.
+  La pregunta 3 de [[huecos-abiertos]] baja de "no sabemos cómo se modela" a "falta la
+  pantalla que lo captura".
+- **La columna `fecha` generada e indexada** decide si la exportación tarda 3 ms o 300 ms con
+  tres años de historia.
+
+**Corrección a dos páginas de patrón.** [[patron-composite]] y [[patron-state]] usaban
+`Jornada` para dos cosas incompatibles, y con turnos partidos el diseño se rompe: al cerrar el
+primer turno el estado pasa a `CERRADA`, y la segunda entrada lo reabre **sobre el mismo
+objeto**, perdiendo el primer par. Se introduce el nivel **`Turno`** entre `Jornada` y
+`Marcacion`. Efectos: el contexto de State pasa a ser `Turno`, la validación queda en **un
+solo sitio** —cerrando la tensión de *Shotgun Surgery* anotada entre [[patron-factory]] y
+[[patron-state]]— y `Marcacion` vuelve a ser un hecho inmutable.
+
+**Un hallazgo aprovechable para el informe:** el `Duration.ZERO` que `Marcacion` devolvía en
+[[patron-composite]] era una violación de **ISP** — la interfaz obligaba a la hoja a
+implementar lo que no le corresponde. Con el nivel `Turno` se corrige, y el antes/después es
+evidencia directa para el capítulo de principios ISP que exige [[pc3-entregable]] (RC-05),
+que hasta ahora no tenía material propio.
+
+**Cerrado en [[huecos-abiertos]]:** preguntas 1 (identidad), 9 (motor de base de datos) y
+parcialmente 2 (acceso de la administradora) y 3 (los tres estados de ausencia).
+
+**No hecho:** no se escribió código. El proyecto Maven, el esquema SQL y los stored procedures
+siguen sin existir. Tampoco se ingirieron S01–S04 ni las guías de taller, que son el material
+de principios de diseño e ISP.
+
+## [2026-09-06] decision | ADR-003 — login de administrador y un patrón que se cae
+
+El usuario fijó dos cosas: **el cronograma solo escribe horas** —`DESCANSO`, `NO TURNO`,
+`INASISTENCIA` y las tardanzas se manejan a mano fuera del sistema— y **hay login de
+administrador sí o sí**.
+
+**Creado:** [[adr-003-login-y-cronograma-simple]] y [[patron-observer]].
+
+**Lo que la primera decisión elimina.** Desaparecen la tabla `turno_planificado`, la pantalla
+de planificación semanal que habría que construir, y la columna `estado` de `jornada_diaria`.
+El hueco de los tres estados de ausencia, abierto desde la primera lectura del Excel, **no se
+cerró con más diseño sino con menos alcance**.
+
+**Y arrastra un patrón.** [[patron-state]] entró al núcleo argumentando que "contando todo son
+siete estados, así que la advertencia de S12 sobre pocos estados no aplica". Al irse cinco de
+esos siete quedan dos —turno abierto y cerrado— y [[s12-state-observer]] dice literalmente
+que State "puede ser excesivo si solo hay pocos estados". Por el criterio del proyecto
+—¿el código queda más limpio con él?— la respuesta pasó a ser no: un `salida == null` gana a
+dos clases de estado. **State se descarta** y su página pasa a `obsoleto`, conservada como
+evidencia.
+
+**Observer sube de la periferia al núcleo** para tapar el hueco que eso abría: sin State el
+proyecto se quedaba **sin ningún patrón de comportamiento**, y [[pc3-entregable]] exige
+desarrollar las tres familias. Su justificación es además más sólida que la que le quedaba a
+State: sin él, [[patron-facade]] tendría que conocer al recalculador de jornadas y al
+dashboard, y crecería con cada efecto nuevo.
+
+**Cuentas nuevas:** 6 patrones de núcleo —Singleton y Factory (creacionales), Decorator,
+Composite, Facade y Proxy (estructurales), Observer (comportamiento)—, **7 descartados** y
+Adapter según alcance.
+
+**El login refuerza [[patron-proxy]].** Mientras no había autenticación, `SesionAdministradora`
+era un objeto ficticio y el *Protection Proxy* protegía un recurso que en realidad estaba
+abierto. Con Spring Security y BCrypt sobre la tabla `administrador` nueva, el proxy consulta
+una sesión real.
+
+**Sobre los turnos partidos:** se colapsan, siguiendo la indicación literal del usuario —hora
+de ingreso, guión, hora de salida—. Como un día de 9–1 y 3–8 declararía 11 horas donde se
+trabajaron 9, `jornada_diaria` conserva aparte `minutos` y `turnos` reales: **la celda
+simplifica, el dato no miente.**
+
+**Requisitos nuevos:** RF-14 (login), RF-15 (la celda solo lleva horas), RNF-05 (HTTPS) y
+RNF-06 (compresión en el navegador). RF-02 y RF-10 quedan matizados.
+
+**Cerrado en [[huecos-abiertos]]:** preguntas 2, 3, 13 y 14. La 5 baja a parcial.
+
+**Sigue pendiente y ahora es lo más urgente:** el **ODS** (RC-07), único hueco que bloquea el
+informe. Y **el ISP no tiene página** pese a ser criterio de la rúbrica, aunque el caso ya
+está identificado —el `Duration.ZERO` de `Marcacion`— y S01–S04 siguen sin ingerir.
+
+**No hecho:** cero código. No existe el proyecto Maven, ni el esquema SQL, ni los stored
+procedures que [[modelo-datos]] define.
+
+## [2026-09-06] decision | ADR-004 — Azure con 100 USD de crédito de estudiante
+
+El usuario dispone de **100 USD en Azure** por su cuenta de estudiante.
+[[adr-002-arquitectura-produccion]] había dicho "VPS en la nube" en abstracto; con proveedor y
+presupuesto concretos, dos decisiones se afinan y una se revierte.
+
+**Creado:** [[adr-004-despliegue-azure]].
+
+**Lo primero fue hacer la cuenta, y sale corta.** Con precios de lista, una VM B1s más disco,
+IP pública estática y Blob suman **~13–14 USD al mes**: el crédito rinde unos **7 meses**, no
+doce. Con la VM reservada a un año baja a ~10 USD y llega a diez meses. Solo supera el año si
+el nivel gratuito cubre las 750 horas de B1s, **y eso no está verificado** — pregunta 19 de
+[[huecos-abiertos]].
+
+**Se descarta separar la base de datos.** Azure Database for MySQL, en su SKU más barato,
+cuesta 12–14 USD al mes él solo: se comería el crédito entero sin haber pagado todavía el
+servidor de aplicación. A 400 marcaciones diarias no hay razón técnica para separarlas. Todo
+va en una VM B1s: Nginx, Spring Boot y MySQL.
+
+**Se revierte la decisión 2 de ADR-002: las fotos van a Blob Storage, no al disco.** En Azure
+el almacenamiento de objetos es **más barato que el disco** —~0,22 USD al mes contra ~4,80 de
+un disco de 64 GB— y además sobrevive a la VM y elimina el fallo por disco lleno. Lo esencial
+de ADR-002 se mantiene: **nunca `BLOB` dentro de MySQL**. Y el cambio **no toca ningún
+llamador**, porque ADR-002 ya había impuesto la interfaz `AlmacenFotos` justo para esto.
+
+**La retención de 3 meses resultó ser lo que vuelve viable el presupuesto**: en régimen
+estable son ~12 GB, no los ~30 GB anuales que crecerían sin purga.
+
+**HTTPS sale gratis.** RNF-05 se resuelve con la etiqueta DNS de Azure más Let's Encrypt, sin
+comprar dominio. El respaldo también: `mysqldump` nocturno a Blob en nivel frío, porque Azure
+Backup cuesta ~5 USD al mes, la mitad del presupuesto mensual.
+
+**Y aparece un uso de [[patron-adapter]] que no depende del alcance.** Adapter llevaba desde
+[[adr-001-patrones-seleccionados]] en suspenso, condicionado a importar los Excel históricos.
+El SDK de Azure Blob expone una interfaz ajena que hay que traducir a la del dominio, que es
+lo que [[s08-adapter-facade]] define. **Queda anotado con su reserva:** si al escribir la clase
+resulta ser una delegación de tres líneas sin traducción real, no es Adapter y no debe
+llamarse así — sería Golden Hammer. Se decide escribiéndolo. De eso depende que el proyecto
+tenga 6 o 7 patrones.
+
+**Dos consecuencias que no son técnicas:** hay que poner **alertas de presupuesto** al 25, 50 y
+75 % del crédito, y hay que **planificar el traspaso de facturación a la empresa** antes de que
+venza. La cuenta de estudiante no lleva tarjeta: al agotarse el crédito los recursos se
+detienen. Un control de asistencia que se apaga sin aviso es peor que no tenerlo.
+
+**Riesgo asumido:** 1 GB de RAM para Ubuntu, MySQL, la JVM y Nginx es ajustado. Queda
+documentado el afínado (`-Xmx384m`, buffer pool de 192 MB, 2 GB de swap) y la salida si falla:
+B1ms, que duplica el costo de la VM.
+
+**No hecho:** sigue sin escribirse código. Tampoco se ha creado nada en Azure todavía.
+
+## [2026-09-06] lint | Corrección de cuentas — el núcleo son siete patrones, no seis
+
+Al preparar la presentación de avance salió un error propio: [[adr-003-login-y-cronograma-simple]]
+escribía "seis patrones de núcleo" mientras **su propia tabla listaba siete**, y la cifra
+equivocada se había propagado a [[index]], [[overview]], [[mapa-patron-requisito]] y
+[[adr-004-despliegue-azure]].
+
+**Son siete.** El núcleo eran 7 en [[adr-001-patrones-seleccionados]]; sale State y entra
+Observer, así que sigue en 7: Singleton, Factory, Decorator, Composite, Facade, Proxy y
+Observer. Las cuentas cierran **7 implementados + 7 descartados + 1 según alcance = 15**.
+
+Importa porque es la cifra que va al informe: **de los diez patrones que nombra
+[[pc3-entregable]] implementamos siete** —faltan Prototype, Bridge y Command, los tres con su
+descarte documentado— y con Adapter serían ocho.
+
+**Corregido en:** ADR-003 (con nota de la corrección), ADR-004, [[mapa-patron-requisito]],
+[[index]] y [[overview]].
+
+## [2026-09-06] decision | ADR-005 — hosting a largo plazo, ODS 8 y equipo de dos
+
+El usuario pidió investigar si los 100 USD de Azure se renuevan con el correo de la UTP y si
+hay alternativas más baratas. Además confirmó ODS, equipo y forma de trabajo.
+
+**Creado:** [[adr-005-hosting-largo-plazo]].
+
+**El crédito sí se renueva, y aun así no sirve.** Azure for Students se renueva cada 12 meses
+sin límite de veces mientras se siga siendo estudiante verificado, con 100 USD nuevos cada vez
+(no es automático: avisan ~30 días antes y hay que reverificar). **Pero el crédito se agota por
+lo que ocurra primero**: a ~13 USD al mes los 100 dólares se acaban en el mes 7,7 y la
+renovación no llega hasta el 12. **Son más de cuatro meses de sistema apagado.** Para que
+coincidan, el gasto tendría que bajar de 8,33 USD/mes, y en Azure no se llega sin recortar algo
+necesario.
+
+**La alternativa que resuelve el problema de raíz: Oracle Cloud Always Free** — 2 OCPU ARM y
+**12 GB de RAM**, 200 GB de bloque, 20 GB de objetos y 10 TB de salida mensual, **gratis y sin
+vencimiento**. Doce veces la memoria de la B1s de Azure, y sus 20 GB de objetos cubren justo
+los ~12 GB de fotos en régimen estable. Con 12 GB de RAM desaparece además todo el afinado
+incómodo que documentaba ADR-004.
+
+**Riesgos anotados, no ocultados:** Oracle **redujo el nivel gratuito a la mitad el 15 de junio
+de 2026** —de 4 OCPU y 24 GB a 2 y 12— **sin anuncio público**, solo actualizando la
+documentación; provisionar ARM falla a menudo por *out of capacity*; y es aarch64. Si no da
+capacidad, la salida es **Hetzner** a ~5,50 USD/mes.
+
+**Decisión: Azure para el curso, Oracle para producción.** Cambiar de proveedor a mitad del
+trabajo académico no compra nada, y 100 USD cubren de sobra hasta la entrega.
+
+**Las dos cuentas de estudiante no se encadenan.** La compañera también tiene crédito, pero
+depender de una suscripción que controla otra persona para las marcaciones reales de una
+empresa es frágil. Se destina a un **entorno de pruebas separado**, que además produce los
+datos de prueba que exige RC-08 para el video.
+
+**ODS 8 confirmado** — Trabajo decente y crecimiento económico, meta 8.8. Cierra RC-07 y la
+pregunta 7 de [[huecos-abiertos]]: **era el último hueco que bloqueaba el informe.**
+
+**Equipo de dos, programando a la par.** Más lento que repartirse capas, pero es lo que premia
+la entrevista individual de PC-3, donde cada estudiante responde por todo el sistema. **Queda
+un riesgo abierto:** PC-3 nombra los archivos `Apellidos1-2-3` y pide lecciones "por cada
+estudiante" — hay que **confirmar con el docente** que un grupo de dos está autorizado.
+
+**También:** el [GitHub Student Developer Pack](https://education.github.com/pack) con el
+correo UTP incluye 200 USD de DigitalOcean por un año y un **dominio gratis**, que resuelve sin
+costo lo único que ADR-004 dejaba como mejora opcional.
+
+**No hecho:** sigue sin escribirse código, y no se ha creado nada en Azure ni en Oracle.
+
+## [2026-09-06] decision | ADR-006 — el dashboard, y una decisión mía que estaba mal
+
+El usuario revisó la presentación de avance y detectó tres huecos. Dos son omisiones; uno es un
+error de interpretación mío.
+
+**Creado:** [[adr-006-dashboard-y-turnos-multiples]].
+
+**El error: la celda del cronograma no podía colapsar los turnos.**
+[[adr-003-login-y-cronograma-simple]] fijó que la celda fuera *primera entrada – última
+salida*, porque leí "netamente la hora de ingreso más la hora de salida" como un solo rango.
+**Era una mala lectura**, y estaba advertida por escrito: el propio ADR-003 anotaba que eso
+"declara 11 horas donde se trabajaron 9", y [[marcacion-multiple]] lo había señalado antes como
+el riesgo del colapso. Ahora la celda lleva **un par por línea, hasta seis** —hasta 12
+marcaciones al día— que es el caso extremo de rotación entre sedes.
+
+Un séptimo par **no se rechaza**: se registra y marca la jornada para revisión. Perder una
+marcación real es peor que romper el formato.
+
+**Lo que sí estaba bien:** el modelo de dominio nunca colapsó nada. `Jornada → Turno →
+Marcacion` de [[marcacion-multiple]] ya soportaba seis pares, y `minutos` siempre sumó turno a
+turno. El fallo estaba solo en cómo se renderizaba la celda.
+
+**Primera omisión: el dashboard nunca se especificó.** Todo el wiki decía "una pestaña por
+sede" y nada más, siendo la mitad del sistema. Queda con **seis funciones**: vista diaria
+(una sede y un día, cada trabajadora con todos sus turnos y horas sumadas), vista semanal
+(la tabla del cronograma), exportar a Excel, **corregir una marcación olvidada**, **historial
+por trabajadora** cruzando las 7 sedes, y **totales de horas**.
+
+La vista diaria es **una sede a la vez**, no las siete en paralelo: con siete columnas la
+pantalla queda ilegible, y la unidad natural del negocio es (sede, día), la misma clave de
+`jornada_diaria`. El historial es **la única vista que cruza sedes**, porque un reclamo por
+horas es por persona, no por local.
+
+**Segunda omisión: existen cajeras.** Ninguna fuente previa lo mencionaba — todo el wiki
+hablaba solo de podólogas, y el Excel de ejemplo tiene el encabezado `PODOLOGA`. Aparece
+`trabajadora.cargo` con valores `PODOLOGA` y `CAJERA`, **todas en la misma tabla del
+cronograma** con el cargo como columna. Se modela como `ENUM` y no como tabla de catálogo:
+con dos valores, una tabla aparte sería la ceremonia que este proyecto evita.
+
+**Las correcciones son inserciones, no ediciones.** Cierra la pregunta 15 de
+[[huecos-abiertos]]. Cuando alguien olvida marcar la salida, la administradora **inserta una
+marcación nueva** con `origen = ADMINISTRADORA`, sin foto y con motivo obligatorio. Así la
+regla de [[modelo-datos]] —las marcaciones son hechos inmutables— se conserva, y la
+trazabilidad se **gana** en vez de perderse: consta quién la puso y por qué. `foto_ruta` pasa
+a admitir nulo solo para este caso.
+
+**Cambios en [[modelo-datos]]:** `cargo` en `trabajadora`; `origen`, `corregida_por`, `motivo`
+y `foto_ruta` nulable en `marcacion`; `etiqueta` de `VARCHAR(40)` a `VARCHAR(160)` —seis pares
+no caben en cuarenta caracteres—. Y tres procedimientos nuevos: `sp_dia_sede`,
+`sp_historial_trabajadora` y `sp_totales_horas`.
+
+**Requisitos nuevos:** RF-16 a RF-20. RF-15 queda corregido.
+
+**Lo que no cambia:** el sistema sigue sin escribir `DESCANSO`, `NO TURNO` ni `INASISTENCIA`;
+y **sigue sin haber State** — seis pares por día no son seis estados, son seis instancias de
+`Turno`, así que el descarte se sostiene.
+
+**Pendiente:** el diagrama de casos de uso queda incompleto con cuatro casos de
+administradora; hay que rehacerlo con los seis. Y el tramo 2 del plan sube de peso: el
+dashboard pasa de una pantalla a seis funciones.
+
+## [2026-09-06] decision | ADR-007 — el endpoint público no tenía ni una defensa escrita
+
+El usuario reencuadró el tope de 6 pares: **no es un límite de formato, es una medida de
+seguridad** por si alguien intenta marcar muchas veces para tumbar el sistema. En la práctica
+no se ven más de **2 rotaciones, o sea 3 pares**. Además confirmó que **no hay más cargos** que
+podóloga y cajera, y añadió la distinción **jornada completa / media jornada**.
+
+**Creado:** [[adr-007-seguridad-endpoint-publico]].
+
+**El reencuadre abrió un frente que el wiki no había tocado en siete decisiones.** El
+formulario de marcación es un **endpoint público, sin autenticación, que acepta subida de
+archivos** (RF-01): la superficie de ataque más expuesta del sistema, y no tenía una sola
+línea escrita sobre ella.
+
+**El ataque más peligroso no es el que el usuario mencionó.** Marcar cientos de veces ensucia
+el cronograma, sí. Pero una **imagen bomba** —100 KB comprimidos que declaran 30 000 × 30 000
+píxeles— **mata la JVM al instante** con el heap de 384 MB de la VM B1s. No hace falta enviar
+un archivo grande. Es el ataque que un sistema con subida de fotos y poca RAM tiene que
+contemplar sí o sí, y la defensa es leer las dimensiones de la cabecera **antes** de
+decodificar.
+
+**Cuatro barreras, ordenadas de la más barata a la más cara de evaluar:** Nginx (tamaño ≤ 2 MB
+y tasa por IP, cuesta cero porque no llega a Java) → validación de imagen real (bytes mágicos y
+tope de 5000 × 5000 px, solo se lee la cabecera) → reglas de negocio (cooldown de 2 minutos y
+tope diario, **una sola consulta indexada** para ambas) → procesar (~300 ms de CPU). El
+principio es **rechazar lo antes posible**: descartar tras decodificar una imagen cuesta
+cientos de milisegundos que en 1 vCPU son un lujo.
+
+**Se corrige [[adr-006-dashboard-y-turnos-multiples]]:** ahí decía que un séptimo par "se
+registra igual y marca la jornada para revisión". Como límite de formato tenía sentido; **como
+defensa no sirve de nada**, porque aceptar por encima del tope es justo lo que el atacante
+quiere. Ahora la marcación 13 **se rechaza** — pero **el intento se registra** en una tabla
+nueva, `intento_rechazado`, y si el caso fuese legítimo se arregla por la corrección manual,
+que pasa por una persona y no por el endpoint abierto. Así el límite es duro y ningún dato real
+se pierde.
+
+**Sin CAPTCHA, y se documenta por qué.** Sería la defensa obvia contra automatización, pero
+[[requisitos]] RNF-01 dice que las usuarias tienen poca familiaridad tecnológica y que
+cualquier fricción se traduce en marcaciones no registradas. Un CAPTCHA **rompería el requisito
+principal del cliente** para defender algo que las cuatro barreras ya cubren. Es una decisión
+de compromiso consciente, y buen material para la entrevista.
+
+**El enlace lleva un segmento aleatorio** (`/m/7f3a9c2e4b81`), y se dice claramente que **no es
+seguridad**: filtra el ruido automatizado, no sustituye a ninguna barrera.
+
+**Jornada completa o media: se muestra, no se valida.** No se implementa ninguna regla del tipo
+"media jornada no puede pasar de N horas" — nadie la pidió y rechazaría horas extra
+legítimas. El sistema registra lo que ocurrió; interpretarlo es criterio de la administradora,
+la misma disciplina que con `DESCANSO` e `INASISTENCIA`.
+
+**No añade ningún patrón, y eso fue una tentación real.** Un filtro de limitación de tasa se
+parece a Decorator, a Chain of Responsibility y a Proxy a la vez. Pero Chain of Responsibility
+ni siquiera está entre los quince del curso, y bautizar como patrón nuevo lo que es un
+**segundo uso de [[patron-proxy]]** sería inflar la cuenta. Se documenta como refuerzo de
+Proxy: que el mismo patrón sirva al dashboard y al lado público fortalece su justificación en
+vez de estirarla.
+
+**Cambios en [[modelo-datos]]:** `jornada` en `trabajadora`, tabla nueva `intento_rechazado`, y
+`sp_validar_marcacion` que resuelve cooldown y tope en una consulta. **Requisitos nuevos:**
+RF-21 y RNF-07.
+
+**Aparece un entregable que no estaba:** la configuración de Nginx deja de ser un detalle de
+despliegue — los límites viven ahí.
+
+**No hecho:** sigue sin escribirse código.
+
+## [2026-09-07] decision | ADR-008 — el prototipo contra el wiki, y doce huecos cerrados
+
+El usuario compartió un **prototipo navegable de la app de marcación** construido por otra vía
+y pidió revisarlo antes de seguir. Contradecía al wiki en cinco puntos, así que la mitad del
+trabajo fue **decidir cuál gana en cada uno y por qué**, no añadir cosas.
+
+**Gana el wiki en tres.** Nada de **reconocimiento facial**: una foto procesada para
+identificar es **dato biométrico**, o sea dato sensible bajo la Ley 29733, con consentimiento
+expreso y por escrito — y no cabe en el nivel gratuito de Oracle. Nada de **GPS**: el usuario
+lo dejó fuera del alcance el mismo día. Y el **tope diario sigue siendo 12 marcaciones**, no
+las 6 del prototipo: con los números del propio usuario, 6 bloquearía a una trabajadora
+legítima en el caso extremo que dice soportar.
+
+**Gana el prototipo en dos.** No preguntar entrada o salida sino **inferirlo** del turno
+abierto — `Turno` ya lo sabía hacer, así que quita un paso sin tocar el modelo. Y **marcar sin
+señal**, que el wiki no contemplaba.
+
+**La cola sin señal se acepta con condiciones**, porque tal cual rompía la regla que sostiene
+el proyecto: el servidor es el dueño de la hora. Se guardan **dos momentos** —el del
+dispositivo y el de llegada—, se marca `fuente_hora = DISPOSITIVO`, y se rechaza lo que llegue
+con más de **2 horas** de retraso. El usuario eligió 2 sobre 12 a propósito. Así el sistema
+**nunca afirma una hora que no puede probar**, que era lo único innegociable.
+
+**Interfaz: Thymeleaf con HTMX**, un JAR y un servidor. La pregunta del usuario llevaba dentro
+una confusión que conviene dejar escrita: el prototipo que admira **no usa ningún framework**.
+Lo moderno viene de la tipografía, los radios y el espaciado, no de React.
+
+**Diez decisiones de alcance más**, todas del usuario: 100–150 trabajadoras, una sola
+administradora, arranque en blanco, exportación solo semanal, retención de 3 meses, sin turnos
+que crucen medianoche, dominio propio, aviso de privacidad en papel a cargo de la empresa, y
+`10:12AM -` para la jornada sin salida.
+
+**Cambios en [[modelo-datos]]:** `fuente_hora` y `momento_recibido` en `marcacion`, y
+`COLA_VENCIDA` en `intento_rechazado`. **En [[requisitos]]:** RF-04 derogado, RF-02 pasa a
+rejilla de caras por sede, y se corrigió la nota de RF-10 que aún decía «las fotos van al disco»
+cuando [[adr-004-despliegue-azure]] las había movido al almacén de objetos.
+
+**[[huecos-abiertos]] cierra siete preguntas** (4, 5, 6, 10, 12, 16, 17), deja la 20 parcial y
+**abre tres nuevas**: si existen fotos de referencia, si se prueba con una podóloga real, y con
+qué correo se crea la cuenta de la nube — porque desplegar en una cuenta personal de estudiante
+deja los datos de la empresa a nombre del alumno.
+
+**No cambia ningún patrón.** Siguen siendo siete: ni el descarte del reconocimiento facial, ni
+HTMX, ni la cola añaden o quitan nada.
+
+**No hecho:** sigue sin escribirse código.
+
+## [2026-09-07] decision | El contador de la pantalla no debe anunciar el tope
+
+Corrección del usuario sobre la maqueta de confirmación: no «Marcación 1 de 12 de hoy» sino
+**«1 de 2»**, luego «2 de 2», luego «3 de 4». El denominador es el **par en curso**.
+
+Lo pidió como claridad para la trabajadora —una jornada son pares, no una cuota— y de paso
+**cierra un agujero que yo no había visto**: mostrar el 12 en el formulario público es anunciar
+el tope de la propia defensa, o sea decirle a cualquiera con el enlace cuánto aguanta el
+sistema antes de rechazar. Con el contador por pares, el 12 aparece **solo en el mensaje de
+rechazo**, cuando ya se alcanzó y ocultarlo no serviría de nada.
+
+El tope duro de [[adr-007-seguridad-endpoint-publico]] no cambia: 12 marcaciones por
+(trabajadora, sede, día), y la número 13 se rechaza. Lo que cambia es que el endpoint deja de
+publicarlo. Escrito en [[marcacion-multiple]] y como decisión 6 de
+[[adr-008-alcance-interfaz-y-cola-sin-senal]].
+
+## [2026-09-07] decision | ADR-009 — la recapitulación encontró 6 puntos sobre la mesa
+
+Recapitulación del proyecto entero contra la rúbrica, a petición del usuario. Salieron tres
+cosas que el wiki no había mirado de frente.
+
+**La primera vale 6 puntos.** De los diez patrones que PC-3 exige teníamos **siete**, y ese es
+el criterio que más puntúa. Revisando los descartes de [[adr-001-patrones-seleccionados]]
+aparece que **dos de los tres que faltaban ya tienen casa honesta**, y no por cambiar de
+opinión sino porque **cambió el problema**:
+
+- **Bridge** se descartó cuando eran «dos formatos de salida». Hoy las fotos viven en tres
+  sitios ([[adr-005-hosting-largo-plazo]]) y hay dos tipos de foto —evidencia que se purga y
+  referencia permanente ([[adr-008-alcance-interfaz-y-cola-sin-senal]])—. Dos jerarquías que
+  varían por su cuenta.
+- **Command** se descartó porque «solo aportaría el *undo*». Hoy existe la **cola sin señal**:
+  capturar una petición como objeto, guardarla y ejecutarla más tarde es literalmente el
+  patrón.
+
+Los dos entran **por confirmar**, como Adapter: se deciden escribiendo la clase. Nueve patrones
+bien defendidos valen más que diez que no se sostienen. **Prototype se queda fuera** y se
+entrega igual, como sección «evaluación y descarte» del informe — un hueco en el índice es peor
+que un descarte razonado.
+
+**La segunda es el calendario.** La entrega es en **menos de un mes** y el plan estaba dibujado
+a ocho semanas. Comprimido a cuatro, y **escrito qué se cae**: la migración a Oracle, las fotos
+de referencia y la presentación a la dueña. Lo que no se cae, aunque tiente: las pruebas de
+integración por capa y la evaluación de antipatrones, las dos obligatorias en la estructura del
+informe. Para la segunda **la evidencia ya existe** —el ISP corregido con `Turno`, el Shotgun
+Surgery de la validación duplicada, los cinco descartes— y solo falta redactarla.
+
+**La tercera es que no existe ni una carpeta del entregable.** Escrita
+[[estructura-repositorio]]: `MVC` y `SQL` por el anexo, y los paquetes de Java llamados
+`vista`, `control`, `modelo` y `bd` en vez de la convención de Spring, porque quien abre el
+repositorio tiene que **ver** la arquitectura, no traducirla. Un solo módulo Maven: cuatro
+`pom.xml` son cuatro sitios donde romperse la semana de la entrega.
+
+**Y un aviso que salió de rebote:** el repositorio **ya es público** y este wiki lleva **nombres
+reales de trabajadoras** tomados del Excel de la empresa. En un repositorio público el historial
+no se borra fácil.
+
+**Cambios en [[modelo-datos]]:** `sp_intentos_rechazados`, el décimo procedimiento — sin él la
+octava función del dashboard no tenía de dónde leer.
+
+**No hecho:** sigue sin escribirse código, ahora por decisión explícita del usuario: primero la
+propuesta completa en el enlace, para presentarla bien.
+
+## [2026-09-08] consulta | Los patrones explicados sin jerga, para quien recién empieza
+
+El usuario pidió que la presentación de avance explicara **cómo se aplican los patrones**, con
+palabras entendibles para alguien que recién entra al curso. Archivado como
+[[patrones-en-cristiano]] siguiendo §5 del contrato: la respuesta tenía valor duradero y no
+debía morir en el chat.
+
+**La forma que mejor funciona no es la lista, es el viaje.** Doce pasos desde que la trabajadora
+toca ENVIAR hasta que el dashboard se refresca, con el patrón que actúa en cada uno. Deja ver lo
+que una lista esconde: que el Facade llama al Factory, que el Factory produce el objeto que el
+Decorator envuelve, y que el Observer desencadena al Composite sin conocerlo.
+
+Para cada patrón, tres columnas: **qué hace en cristiano, dónde entra aquí, y qué pasaría sin
+él.** Esa tercera columna es la importante — es la que convierte una definición memorizada en un
+argumento, y es el orden en que hay que responder en la entrevista individual: **problema
+primero, patrón después, consecuencia al final**.
+
+**Sin inventar nada nuevo:** la página destila [[mapa-patron-requisito]], [[cuatro-capas]] y los
+nueve ADR existentes. Prototype y State se explican también, porque un descarte razonado es
+evidencia para el capítulo de antipatrones de [[pc3-entregable]].
+
+**Corregidos tres datos desactualizados del artefacto** que aparecieron al releerlo entero: el
+resumen del cuadro de patrones aún decía «7 se implementan · 1 depende · 7 descartados» cuando
+[[adr-009-estructura-y-dos-patrones-que-vuelven]] lo dejó en 7 · 3 por confirmar · 5 fuera; el
+árbol del repositorio decía 8 decisiones en vez de 9; y el pie citaba hasta ADR-008.
+
+**No hecho:** sigue sin escribirse código.
+
+## [2026-09-20] decision | ADR-010 — el sistema deja de decir que no
+
+Ocho cambios del usuario de una sola vez. Seis son alcance; **dos chocan de frente con
+decisiones anteriores**, y por contrato quedan registrados como tensión antes de resolverlos.
+
+**El cambio de fondo:** *«siempre se tiene que poder tomar, no debe invalidar nada»*. Se deroga
+toda validación de secuencia — doble entrada, doble salida, dos marcaciones seguidas en la misma
+sede: **todo se acepta**. Desaparece la rama «Rechazar y avisar» que venía de
+[[adr-003-login-y-cronograma-simple]]. `Turno` sigue infiriendo si abre o cierra, pero ahora
+**sugiere en vez de bloquear**, y lo que queda suelto se muestra suelto: `10:12AM -` para una
+entrada sin salida, `- 8:46PM` para una salida sin entrada.
+
+**Primera tensión, sin resolver del todo.** El 2026-09-06 el usuario pidió expresamente un tope
+—*«es importante un límite»*— y hoy dice que no se invalide nada. Las dos frases son suyas. La
+propuesta es conservar el tope de 12 **solo como defensa del endpoint público**, nunca como
+validación de la jornada, y bajar el cooldown de 2 minutos a 30 segundos, que es lo que
+estorbaría a alguien corrigiendo un doble ingreso en el momento. **Queda como pregunta 27**: si
+«no invalidar nada» aplica sin excepción, el formulario público se queda sin ningún límite.
+
+**Segunda tensión.** Poder **escribir el nombre** cuando la trabajadora no está registrada choca
+con la lista cerrada de [[adr-002-arquitectura-produccion]], que existe para que `MARY P.`,
+`mary` y `Mari` no acaben siendo tres personas. Resolución: el texto libre **no crea una
+trabajadora del padrón**, crea una **provisional** que la administradora confirma o fusiona. Su
+marcación se guarda igual —nadie se queda sin marcar— pero no entra al cronograma exportado
+hasta que alguien decida quién es. Eso obliga a que `cargo` y `jornada` admitan nulo, y añade la
+novena función del dashboard.
+
+**Lo demás:** el cargo sale de la plantilla y de las vistas; la exportación gana **hoja diaria**;
+la advertencia de hora del dispositivo pasa a ser **permanente y viaja al Excel** como asterisco
+con leyenda; y hay que aguantar **ráfagas de más de 80 personas** — donde la medida que de verdad
+importa no es el caudal sino **acotar cuántas imágenes se decodifican a la vez**, porque eso es
+lo que tumba un proceso.
+
+**Y la plataforma pasa a ser Oracle Always Free**, sin pasar por Azure. Eso vuelve del revés dos
+decisiones: la migración deja de estar fuera del alcance
+([[adr-009-estructura-y-dos-patrones-que-vuelven]]) y **probar `aarch64` sube a ser el riesgo
+número uno**, bloqueando la semana 1. De paso ayuda con la ráfaga: 2 OCPU y 12 GB contra el
+1 vCPU y 1 GB de la B1s.
+
+**Lo que hay que vigilar:** comprometerse con una sola nube **le quita una pata a Bridge**.
+Quedan dos implementaciones reales y los dos tipos de foto. Sigue siendo defendible, pero más
+delgado — y es exactamente el reclamo que prometimos revisar al escribir la clase.
+
+**Cambios en [[modelo-datos]]:** `cargo` y `jornada` a nulo, `provisional` en `trabajadora`,
+`sp_cronograma_diario` y `sp_provisionales`. **En [[requisitos]]:** RF-02 matizado por tercera
+vez, RF-20 recortado, y nuevos RF-22 a RF-25 y RNF-09.
+
+**No hecho:** sigue sin escribirse código.

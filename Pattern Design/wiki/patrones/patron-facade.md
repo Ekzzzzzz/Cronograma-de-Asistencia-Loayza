@@ -27,8 +27,8 @@ sistema".
 ## Por qué encaja aquí
 
 Enviar una marcación dispara cinco cosas: validar la trabajadora y la sede, crear la
-marcación ([[patron-factory]]), sellar la foto ([[patron-decorator]]), persistir, y notificar
-al dashboard ([[patron-observer]] si entra). El controlador web **no debería conocer ese
+marcación ([[patron-factory]]), sellar la foto ([[patron-decorator]]), persistir, y publicar
+el hecho para que [[patron-observer]] recalcule la jornada y refresque el dashboard. El controlador web **no debería conocer ese
 orden**, y menos con [[requisitos]] RNF-01 exigiendo simplicidad: un solo botón "enviar" del
 lado de la usuaria debería ser una sola llamada del lado del código.
 
@@ -57,10 +57,10 @@ public class RegistrarMarcacionFacade {
                 solicitud.tipo(), solicitud.trabajadora(), sede,
                 evidencia, solicitud.notas());
 
-        // 4. Validar contra la jornada abierta en esa sede
+        // 4. Validar contra el turno abierto en esa sede — ver [[marcacion-multiple]]
         Jornada jornada = repositorio.jornadaDelDia(
                 solicitud.trabajadora(), sede, LocalDate.now());
-        marcacion.validar(jornada);
+        jornada.validar(marcacion);
 
         // 5. Persistir imagen y registro
         long idFoto = fotos.guardar(evidencia.render());

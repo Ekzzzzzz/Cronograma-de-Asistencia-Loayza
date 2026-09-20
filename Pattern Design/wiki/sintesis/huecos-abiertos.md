@@ -5,7 +5,7 @@ estado: borrador
 fuentes:
   - brief del usuario (2026-09-05)
   - docs/Cronograma_Ejemplo.xlsx
-actualizado: 2026-09-05
+actualizado: 2026-09-20
 tags: [pendientes, decisiones, bloqueos]
 ---
 
@@ -37,49 +37,152 @@ ingesta puede avanzar con el material completo.
 
 ## Preguntas para el usuario
 
-1. **Identidad de la trabajadora.** ¿El nombre se escribe libre o se elige de una lista?
-   Texto libre garantiza duplicados y rompe el agrupado del cronograma
-   ([[formato-cronograma-excel]]).
-2. **Acceso de la administradora.** ¿Lleva usuario y contraseña? El brief solo dice que la
-   trabajadora entra por un enlace general.
-3. **Descanso / No turno / Inasistencia.** El Excel distingue tres estados que no se pueden
-   deducir de las marcaciones. ¿Existe un cronograma planificado previo, o la administradora
-   los marca a mano en el dashboard?
-4. **Geolocalización.** `tools/pluscode.py` tiene las coordenadas de las 7 sedes. ¿Se quiere
-   validar que la marcación ocurra en la sede, o el script era solo exploratorio?
-5. **Entrada sin salida.** Si una trabajadora marca entrada y nunca la salida, ¿qué muestra
-   el cronograma?
-6. **Alcance de la exportación.** El ejemplo es de una semana (lunes a domingo). ¿La
-   exportación es siempre semanal, o hace falta también mensual?
+1. ✅ **Resuelta (2026-09-06) — Identidad de la trabajadora.** Se elige de una **lista
+   desplegable cerrada**; la administradora registra a las podólogas. Ver
+   [[adr-002-arquitectura-produccion]]. Matiza [[requisitos]] RF-02 y añade al alcance la
+   pantalla de registro de trabajadoras.
+2. ✅ **Resuelta (2026-09-06) — Acceso de la administradora.** **Login obligatorio**:
+   Spring Security con contraseñas BCrypt sobre la tabla `administrador`. Protege dashboard,
+   exportación y alta de trabajadoras. Ver [[adr-003-login-y-cronograma-simple]].
+3. ✅ **Resuelta (2026-09-06) — Descanso / No turno / Inasistencia.** **Se manejan a mano**,
+   fuera del sistema. El sistema solo escribe horas. Se resolvió por reducción de alcance, no
+   por diseño: desaparecieron la tabla `turno_planificado`, la pantalla de planificación y el
+   patrón [[patron-state]].
+4. ✅ **Resuelta (2026-09-07) — no entra por ahora.** La sede se elige de un desplegable de
+   siete. El usuario: *«no queremos sobrecargar la aplicación»*. `tools/pluscode.py` queda
+   como material para una mejora futura, **no como pendiente**. Ver [[adr-008-alcance-interfaz-y-cola-sin-senal]].
+5. ✅ **Resuelta (2026-09-07) — cerrada del todo.** El turno queda abierto
+   (`ultima_salida IS NULL`), sin estado especial ni etiqueta escrita por el sistema
+   ([[adr-003-login-y-cronograma-simple]]). Las dos partes que faltaban ya están: **la celda
+   muestra `10:12AM -`** (pregunta 16) y **la administradora sí puede corregirla**
+   (pregunta 15).
+6. ✅ **Resuelta (2026-09-07), ampliada el 2026-09-20 — semanal y diaria.** La semana de lunes
+   a domingo sigue siendo el formato de [[formato-cronograma-excel]], y ahora se añade **la hoja
+   de un solo día** ([[adr-010-sin-rechazos-oracle-y-nombre-libre]]). Sigue sin haber vista mensual ni rangos
+   libres: romperían las siete columnas fijas que la empresa reconoce.
 
 ## Preguntas nuevas tras ingerir PC-3
 
 Ver [[pc3-entregable]]. Estas condicionan el informe, no solo el código:
 
-7. **¿A qué ODS responde el proyecto?** PC-3 exige declararlo en la introducción (RC-07) y
-   el brief no lo menciona.
-
-   > **Inferencia:** el encaje natural es el **ODS 8 — Trabajo decente y crecimiento
-   > económico**: un registro de asistencia verificable protege las horas trabajadas de las
-   > podólogas y hace auditable la jornada. Es la respuesta a confirmar, no una decisión
-   > tomada.
-
-8. **¿El proyecto es en equipo de tres?** Los entregables se nombran `Apellidos1-2-3` y las
-   conclusiones piden lecciones "por estudiante". El brief está en singular.
-9. **¿Qué motor de base de datos?** RC-03 exige stored procedures. MySQL, PostgreSQL y SQL
-   Server sirven; hay que elegir uno antes de modelar.
-10. **¿Vista renderizada en servidor o SPA?** Decide dónde viven Proxy, Bridge, Observer y
-    Command, que PC-3 ubica en la capa Vista. Ver [[cuatro-capas]].
+7. ✅ **Resuelta (2026-09-06) — ODS 8, Trabajo decente y crecimiento económico**, con la
+   meta 8.8 como referencia. Era el último hueco que bloqueaba la introducción del informe.
+   Ver [[adr-005-hosting-largo-plazo]].
+8. ⚠️ **Parcial — tamaño del equipo.** El usuario confirmó que **son dos personas**,
+   programando a la par. Lo que **no** está confirmado es que el docente lo autorice: PC-3
+   nombra los archivos `Apellidos1-2-3` y pide lecciones "por cada estudiante", lo que apunta
+   a grupos de tres. **Hay que preguntarlo en clase.**
+9. ✅ **Resuelta (2026-09-06) — Motor de base de datos: MySQL 8.** A este volumen MySQL y
+   PostgreSQL rinden igual; se elige por cercanía a la sintaxis del curso y facilidad de
+   hosting. Ver [[adr-002-arquitectura-produccion]] y [[modelo-datos]].
+10. ✅ **Resuelta (2026-09-07) — renderizado en servidor.** Thymeleaf, con **HTMX** en el
+    dashboard y JavaScript propio solo en el formulario de marcación —pasos, cámara,
+    compresión, sello de hora y cola sin señal—. Un JAR y un servidor. Los patrones de la
+    capa Vista se quedan **en el servidor**, que es donde [[pc3-entregable]] los evalúa.
+    Ver [[adr-008-alcance-interfaz-y-cola-sin-senal]].
 11. **¿Dónde se ubican Decorator y Composite?** PC-3 los exige por familia pero no les
     asigna capa. Propuesta en [[mapa-patron-requisito]].
-12. **¿Hay que importar los cronogramas viejos, o el sistema arranca en blanco?** De esto
-    depende que [[patron-adapter]] entre o no: si no hay Excel histórico que cargar, no hay
-    nada que adaptar. Ver [[adr-001-patrones-seleccionados]].
+12. ✅ **Resuelta (2026-09-07) — arranca en blanco.** Los Excel viejos quedan como archivo y
+    no hay tarea de importación. **Consecuencia directa: [[patron-adapter]] pierde su primera
+    justificación** y ahora depende por completo de que `AlmacenFotosBlob` traduzca de verdad
+    el SDK de la nube (pregunta 21). Ver [[adr-008-alcance-interfaz-y-cola-sin-senal]].
+
+## Preguntas nuevas tras ADR-002
+
+Ver [[adr-002-arquitectura-produccion]]. Salen de tratar el proyecto como producción real:
+
+13. ✅ **Resuelta (2026-09-06) — planificación de turnos.** No existe: esos casos se
+    manejan a mano. La tabla `turno_planificado` y su pantalla se eliminaron del alcance.
+14. ✅ **Resuelta (2026-09-06), y luego corregida el mismo día.** La celda lleva **un par por
+    línea, hasta seis** ([[adr-006-dashboard-y-turnos-multiples]]). La respuesta anterior
+    —colapsar a primera entrada – última salida— **era una mala lectura** de la indicación del
+    usuario y se revirtió.
+15. ✅ **Resuelta (2026-09-06) — sí puede, insertando.** La administradora añade la salida
+    olvidada como **marcación nueva** con `origen = ADMINISTRADORA`, sin foto y con motivo
+    obligatorio. Nada se edita ni se borra: la inmutabilidad se conserva y se gana
+    trazabilidad. Ver [[adr-006-dashboard-y-turnos-multiples]].
+16. ✅ **Resuelta (2026-09-07) — `10:12AM -`**, con el guion y el hueco a la vista, tal como
+    lo proponía [[marcacion-multiple]]. Dejarla vacía la haría indistinguible de un día sin
+    marcaciones y la administradora perdería la señal. Ver [[adr-008-alcance-interfaz-y-cola-sin-senal]].
+17. ✅ **Resuelta (2026-09-07) — se compra uno propio**, unos 40 soles al año, con
+    certificado gratuito de Let's Encrypt. **Es una tarea con fecha, no una preferencia:**
+    sin HTTPS válido el navegador móvil no abre la cámara y RF-05 deja de funcionar. Ver [[adr-008-alcance-interfaz-y-cola-sin-senal]].
+18. ✅ **Resuelta (2026-09-06) — respaldo.** `mysqldump` nocturno comprimido a un contenedor
+    Blob en nivel frío; las fotos ya viven en Blob, que replica tres copias. Azure Backup se
+    descartó por costo. Ver [[adr-004-despliegue-azure]].
+
+## Preguntas nuevas tras ADR-004
+
+Ver [[adr-004-despliegue-azure]]. El crédito de estudiante es de **100 USD y 12 meses**:
+
+19. **¿La suscripción *Azure for Students* incluye los servicios gratuitos de 12 meses** —750 h
+    mensuales de VM B1s, discos, 5 GB de Blob— **o solo entrega el crédito?** Sin ellos el
+    crédito rinde unos 7 meses; con ellos, más de 18. **Cambia el resultado por un factor de
+    dos** y se comprueba en el portal, no aquí.
+20. ⚠️ **Parcial (2026-09-07) — depende de la dueña, que aún no ha visto el proyecto.** La
+    cuenta de estudiante no lleva tarjeta: al agotarse, los recursos se detienen. La
+    estrategia acordada es **presentarle el sistema ya funcionando sobre Oracle Always Free**,
+    de modo que el costo mensual el día de la propuesta sea **cero** y la conversación no sea
+    «¿financias esto?» sino «¿lo quieres?». **Riesgo anotado:** si se despliega en una cuenta
+    personal de estudiante, los datos de asistencia de la empresa quedan en una cuenta a
+    nombre del alumno. La cuenta de Oracle debe crearse con un correo **transferible** desde
+    el primer despliegue.
+21. **¿`AlmacenFotosBlob` es de verdad un Adapter?** Lo es si traduce el SDK de la nube a la
+    interfaz del dominio; no lo es si acaba siendo una delegación de tres líneas. **Se decide
+    escribiéndolo**, no antes. De ello depende que el proyecto tenga 7 u 8 patrones.
+
+## Preguntas nuevas tras ADR-005
+
+22. 🔴 **LA MÁS URGENTE (subida el 2026-09-20) — ¿Oracle dará capacidad para una instancia
+    ARM?** Con [[adr-010-sin-rechazos-oracle-y-nombre-libre]] la plataforma **ya no es Azure sino Oracle Always
+    Free**, así que esto dejó de ser un riesgo futuro: **es el riesgo principal del proyecto y
+    bloquea la semana 1**. Los errores de *out of capacity* son frecuentes y a veces hay que
+    reintentar durante días. Si no la da, la salida es Hetzner por ~5,50 USD al mes.
+23. ✅ **Resuelta (2026-09-20) — no hay migración: se empieza en Oracle.** El usuario decidió
+    trabajar directamente sobre la versión gratuita. Hay que verificar `aarch64` **antes de
+    escribir nada**, no después. Ver [[adr-010-sin-rechazos-oracle-y-nombre-libre]].
+
+## Preguntas nuevas tras ADR-008
+
+Ver [[adr-008-alcance-interfaz-y-cola-sin-senal]]. Salen de reconciliar el prototipo con el wiki:
+
+24. **¿Existen fotos de referencia de las trabajadoras?** La rejilla de caras las necesita. El
+    prototipo dibuja iniciales sobre un color generado a partir del nombre, que funciona y no
+    cuesta nada — pero una foto real es mucho más rápida de reconocer para quien va a tocarla.
+    Si no existen, hay que decidir si se toman al dar de alta a cada trabajadora.
+25. **¿Se prueba el prototipo con una podóloga real antes de desplegar?** Lo pide el propio
+    prototipo en su pie. Es la única forma de saber si «toca tu cara» se entiende sin que nadie
+    lo explique, y una tarde de prueba ahorra semanas de rediseño.
+26. **¿Con qué correo se crea la cuenta de la nube?** Ver la pregunta 20: si es el correo
+    universitario de un alumno, migrar después es rehacer el despliegue entero.
+
+## Preguntas nuevas tras ADR-010
+
+27. 🔴 **¿El tope de 12 marcaciones también cae?** El usuario dijo el 2026-09-06 que *«es
+    importante un límite»* y el 2026-09-20 que *«no debe invalidar nada»*. Las dos no pueden ser
+    verdad a la vez. La propuesta de [[adr-010-sin-rechazos-oracle-y-nombre-libre]] es conservar el tope
+    **solo como defensa del endpoint público**, nunca como validación de la jornada, y bajar el
+    cooldown de 2 minutos a 30 segundos. **Falta confirmarlo.** Si cae del todo, el formulario
+    público se queda sin ningún límite superior.
+28. **¿El campo `cargo` se sigue usando en algún sitio?** Sale de la plantilla, de la
+    exportación y de las vistas. Si tampoco aparece en el alta de trabajadoras, es una columna
+    que nadie lee y conviene quitarla del esquema en vez de dejarla muerta.
+29. **¿Qué pasa con una marcación provisional que nadie confirma?** Se guarda y espera, pero sin
+    un plazo acaba siendo una bandeja que crece sola. Conviene acordar cada cuánto se revisa.
 
 ## Huecos de contenido del wiki
 
-- Ninguna fuente del curso ha sido ingerida: `wiki/fuentes/` está vacío y `wiki/patrones/`
-  también. Hasta que se ingiera el material, [[mapa-patron-requisito]] no se puede escribir
-  con fundamento.
-- No existe todavía página de arquitectura ni modelo de datos. Depende de cerrar las
-  preguntas 1, 3 y 4.
+**Actualizado 2026-09-06.** Los huecos anteriores de esta sección quedaron cerrados: S06–S14
+y PC-3 están ingeridas, `wiki/patrones/` tiene ocho páginas y [[modelo-datos]] ya existe.
+
+Lo que falta:
+
+- **S01–S04 y las guías de taller siguen sin ingerir.** Son el material de principios de
+  diseño y del **ISP** que exige [[pc3-entregable]] (RC-05), y hoy no hay ninguna página que
+  lo cubra. `factory-decorator.docx` además trae código Java muy cercano al dominio.
+- **No hay página de ISP**, pese a ser un criterio del informe. El caso está identificado: la
+  interfaz `ComponenteCronograma` obligaba a `Marcacion` a devolver `Duration.ZERO`, y el
+  nivel `Turno` de [[marcacion-multiple]] lo corrige. Falta escribirla.
+- **No hay página de endpoints ni de la interfaz de usuario.**
+- **No se ha escrito una sola línea de código.** No existe el proyecto Maven, ni el esquema
+  SQL, ni los stored procedures que define [[modelo-datos]].
