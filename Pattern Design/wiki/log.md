@@ -877,3 +877,206 @@ delgado — y es exactamente el reclamo que prometimos revisar al escribir la cl
 vez, RF-20 recortado, y nuevos RF-22 a RF-25 y RNF-09.
 
 **No hecho:** sigue sin escribirse código.
+
+## [2026-09-20] scaffold | MVC/ existe y compila
+
+Primer paso del backend. **El contrato §7 se salvó de un fallo**: obliga a comprobar que las
+herramientas *se resuelvan*, no que estén instaladas — y **Maven había desaparecido del disco
+entero**, no solo del PATH. También estaba desfasado el resto de la tabla: Java pasó de
+`jdk-26.0.2.1` a `jdk-26`, y Python de 3.14 a 3.13.
+
+**No se reinstaló Maven.** En su lugar el proyecto usa el **Maven Wrapper**, que viaja dentro
+de `MVC/` y descarga su propio Maven. Compila igual en las dos máquinas del equipo y en el
+servidor ARM de Oracle sin instalar nada — que era justo el problema recurrente de esta
+máquina.
+
+**El esqueleto se generó con Spring Initializr** (Boot 4.1.1, Java 25, Maven, con web,
+thymeleaf, jdbc, mysql, validation y devtools) y se adaptó:
+
+- **`pom.xml` limpio**, con los bloques vacíos de Initializr fuera y **comentado el porqué de
+  JDBC y no JPA**: PC-3 exige procedimientos almacenados como evidencia.
+- **Cuatro paquetes con `package-info.java`** —`vista`, `control`, `modelo`, `bd`— cada uno
+  documentando su responsabilidad, los patrones que aloja y **la regla que no se puede
+  romper** en esa capa. Es lo primero que lee quien abre el repositorio.
+- **`application.yml`** en vez de `.properties`, con las decisiones del wiki **como
+  configuración citando su ADR**: cooldown de 30 s, tope de 12, cola de 2 h, 5000×5000 px,
+  4 decodificaciones simultáneas, 90 días de retención, pool de 10 y 50 hilos.
+
+**Dos sorpresas de Boot 4** que conviene tener escritas: el starter web ahora se llama
+`spring-boot-starter-webmvc`, y los starters de test van **partidos por función** —ya no
+existe un único `spring-boot-starter-test`.
+
+**Y una trampa de Initializr que costó un build:** genera `<version>4.1.1.RELEASE</version>`
+y **ese artefacto no existe en Central**. La versión real es `4.1.1`, sin sufijo. Corregido y
+anotado en `CLAUDE.md` §7 para que no vuelva a pasar.
+
+**Estado:** `.\mvnw.cmd -B clean compile` → **BUILD SUCCESS**, `javac ... release 25`.
+
+**Hallazgo que desbloquea el siguiente paso:** MySQL 8.0 ya está instalado y el servicio
+`MySQL80` está corriendo. Falta acordar las credenciales para crear el esquema.
+
+**No hecho:** ni una tabla, ni una clase de dominio. `SQL/` todavía no existe.
+
+## [2026-09-20] scaffold | SQL/ escrito, cargado y probado
+
+Segundo paso del backend. `SQL/` existe con sus cuatro archivos y esta cargado en MySQL
+8.0.42.
+
+**El usuario propuso usar `@Entity` y `ddl-auto` en vez de escribir el SQL a mano.** Es una
+propuesta razonable y se contesto por escrito en [[adr-011-jpa-o-sql-a-mano]] en vez de
+despacharla: la razon que decide no es de gusto, es que `SQL/` es una **carpeta calificada por
+el anexo**, asi que los scripts hay que entregarlos de todos modos y la pregunta real era
+«SQL, o SQL *mas* JPA» — dos definiciones del mismo esquema que se separan. Se recoge lo que
+la propuesta tenia de razon: `SimpleJdbcCall` y `RowMapper` evitan escribir la traduccion
+fila-objeto a mano.
+
+**Lo escrito:** 6 tablas, **16 procedimientos**, el evento nocturno de purga y un semillero de
+457 marcaciones sobre 13 personas y dos semanas.
+
+**Tres cosas que el wiki decia mal y el SQL destapo:**
+
+- [[modelo-datos]] abria con «cinco tablas» mientras describia **seis**.
+- El numero de procedimientos no cuadraba: la tabla listaba 11 y el cuerpo decia «diez».
+- **Cuatro procedimientos faltaban de verdad, no por alcance sino por agujero:**
+  `intento_rechazado` se leia pero nada la escribia, las provisionales igual, y
+  `administrador.ultimo_acceso` era una columna muerta.
+
+**Una contradiccion de diseno, registrada y resuelta partiendo el paso en dos.** La pagina
+prometia que `sp_registrar_marcacion` recalcula `jornada_diaria` en el motor, y mas abajo
+prometia que emparejar entradas con salidas vive **solo** en Java. Las dos no caben. Ahora el
+procedimiento inserta y **devuelve el dia entero ordenado** en la misma llamada; Java arma los
+turnos y llama a `sp_actualizar_jornada` con la celda resuelta. Las dos llamadas van en la
+misma transaccion de Spring. **El costo, dicho sin adornos:** «atomico dentro del motor» deja
+de ser el argumento que justifica el procedimiento; el que queda en pie es «un viaje a la base
+en vez de dos». Detalle en `## Tensiones` de [[modelo-datos]].
+
+**Decision que se mantuvo a proposito:** el cooldown de 30 s y el tope de 12 **no estan
+escritos en el SQL**. `sp_validar_marcacion` devuelve la cuenta y los segundos medidos, y Java
+los compara contra `application.yml`. Los procedimientos cuentan y guardan; quien decide es el
+modelo.
+
+**Estado comprobado:** 17 pruebas de humo, todas pasan, entrando como el usuario `asistencia`
+y no como root — asi se verifico de paso que los permisos alcanzan. El contador que ve la
+trabajadora sale **«Marcacion 1 de 2», «2 de 2», «3 de 4»**, nunca «de 12». Las tildes y la
+enie sobreviven de punta a punta. El hash BCrypt de la administradora es real y se verifico
+que casa con su clave.
+
+**Higiene cumplida:** los 13 nombres de `03_datos_prueba.sql` son **inventados**. El
+repositorio es publico y el video se sube al aula virtual. Las coordenadas de las 7 sedes si
+son reales, porque son locales comerciales y no datos de personas.
+
+**Pendiente de la misma tarea:** el wiki sigue teniendo **nombres reales de trabajadoras**
+tomados de [[formato-cronograma-excel]]. El SQL ya esta limpio; el wiki no.
+
+**No hecho:** ni una clase Java de dominio, ni un `RowMapper`, ni una pantalla. `MVC/` sigue
+teniendo solo el esqueleto.
+
+## [2026-09-20] scaffold | La capa modelo, con el Composite y el Singleton
+
+Tercer paso. `MVC/` ya tiene codigo: **dieciseis clases en `modelo/`**, Java puro, sin Spring y sin
+base de datos.
+
+**El Composite completo, no solo nombrado.** Una interfaz `PeriodoTrabajado` con `minutos()`,
+`titulo()` y `partes()`, e implementada en los cuatro niveles que el dominio ya describia:
+`SemanaSede` -> `DiaSede` -> `Jornada` -> `Turno`. Preguntar las horas es la misma llamada en
+cualquier nivel.
+
+> **Un limite que se puso a proposito:** `Marcacion` **no** implementa la interfaz, aunque
+> seria mas simetrico. Una entrada a las 9:00 no es tiempo trabajado, es un instante; el
+> tiempo aparece cuando hay un par. Estirar el patron un nivel mas solo por simetria seria el
+> *Golden Hammer* de [[s14-antipatrones]].
+
+**El emparejamiento vive en `Jornada.de(...)` y solo ahi**, que es lo que
+[[adr-011-jpa-o-sql-a-mano]] prometio. Los cuatro casos de [[adr-010-sin-rechazos-oracle-y-nombre-libre]]
+estan implementados sin que ninguno rechace ni descarte nada: doble entrada cierra la anterior
+coja, doble salida deja la segunda huerfana, y las dos se ven.
+
+**`ContadorDeHoy` es una clase entera para una division**, y con motivo: es la correccion
+explicita del usuario. «Marcacion 1 de 2», «2 de 2», «3 de 4» — nunca «de 12».
+
+**19 pruebas, todas pasan, en milisegundos.** Ninguna levanta Spring ni toca MySQL.
+
+**Y una de ellas encontro un error de verdad, ya corregido en los dos sitios.** `sp_dia_sede`
+derivaba «turno abierto» de `ultima_salida IS NULL`, copiado de [[modelo-datos]]. **Esta mal en
+cuanto hay mas de un turno**: quien hace 9-1, 2-6 y vuelve a entrar a las 7 tiene ultima salida
+y sigue dentro. La regla buena es «la ultima marcacion del dia fue una entrada». El error venia
+de la frase «solo dos situaciones posibles», escrita pensando en la jornada de un turno cuando
+[[marcacion-multiple]] dice desde el primer dia que eso no se puede asumir.
+
+**Una prueba mia tambien estaba mal y se reescribio.** Afirmaba que el contador «nunca dice
+12», y con 11 marcaciones dice «11 de 12» por pura aritmetica del redondeo al par. La propiedad
+que de verdad protege el endpoint publico es otra y es mas fuerte: **el total mostrado nunca
+supera lo hecho mas uno**, asi que el mensaje jamas revela cuanto margen queda.
+
+**Decision registrada en `CatalogoSedes`:** es un Singleton clasico y no un `@Bean` de Spring,
+que seria lo idiomatico. El motivo no es preferencia: PC-3 pide el patron **en la capa
+modelo**, y esa capa no puede importar el framework. El costo -estado global, pruebas
+acopladas- se paga con un `limpiar()` documentado como «solo para pruebas».
+
+**No hecho:** la capa `bd` sigue vacia. Ninguna de estas clases ha visto todavia una fila de
+MySQL: los `RowMapper` y las llamadas a los 16 procedimientos son el paso siguiente.
+
+**Observacion sin relacion:** aparecio `MVC/.github/modernize/java-upgrade/` en el repositorio.
+No lo creo este trabajo; parece de una extension del editor. Se deja como esta, pero conviene
+decidir si entra al repositorio publico o al `.gitignore`.
+
+## [2026-09-20] decision | ADR-012: fuera cargos, fuera rechazos
+
+Tres instrucciones del usuario despues de ver el esquema cargado. La tercera **revierte
+decisiones de tres ADR anteriores**, asi que quedan escritas en
+[[adr-012-sin-cargos-y-sin-rechazos]].
+
+**1. Fuera `cargo` y `tipo de jornada`.** Eliminados del esquema, del modelo Java y de todas
+las consultas. [[modelo-datos]] ya decia que los dos **se muestran, no se validan**: eran datos
+que no cambiaban ni una hora registrada. El argumento que decide no es el ahorro sino el
+tercero: **una columna «media jornada» tienta a inventar una regla que avise al pasar de cuatro
+horas**, y eso rechazaria horas extra legitimas.
+
+**2. Exportacion diaria y semanal por sede: verificado a medias, y se dice cual mitad.** Los
+dos procedimientos existen, devuelven **las mismas columnas a proposito** —un solo generador
+de Excel que mantener— y la semanal trae la rejilla completa con los dias vacios incluidos.
+**El archivo `.xlsx` en si NO existe todavia**: falta Apache POI y va en la capa `control`.
+
+**3. El sistema no rechaza absolutamente nada. Cierra el hueco 27.** Caen el tope de 12, el
+cooldown de 30 s y la cola vencida de 2 h. **No se subieron: se quitaron**, para que nadie los
+reponga creyendo que solo habia que afinarlos.
+
+> El argumento es de asimetria de danos y aguanta: rechazar una marcacion legitima le borra a
+> una persona una hora de trabajo real y la obliga a perseguir a la administradora; aceptar una
+> rara anade una linea que se resuelve en diez segundos. Rechazar protege contra un fraude que
+> **nadie ha reportado**; aceptar protege contra un fallo que pasa todas las semanas.
+
+**La contrapartida, pagada y no prometida:** `intento_rechazado` **se renombra a `incidencia`**
+y cambia de sentido —guarda lo que se **acepto** y no se entendio—, cada fila **apunta a la
+marcacion que si se guardo**, y lleva `revisada` para que la lista no se vuelva un sitio al que
+nadie entra. Un sistema que lo acepta todo y no dice nada es peor que uno estricto.
+
+**La unica barrera que sobrevive no protege contra la trabajadora:** una imagen de mas de
+5000x5000 px se descarta sin decodificar, porque es la bomba de descompresion y dejaria sin
+servicio a las otras 98. **La marcacion se guarda igual, sin foto.** Lo unico que este sistema
+sigue rechazando es un archivo, nunca una hora trabajada.
+
+**Un efecto de segundo orden que se escapaba:** sin tope de marcaciones, `etiqueta` podia
+crecer mas alla del `VARCHAR(160)` y **MySQL la cortaria en silencio**. Ampliada a 400, con
+corte por linea entera en Java y una prueba que lo fija.
+
+**`sp_validar_marcacion` pasa a llamarse `sp_contexto_marcacion`.** Ya no valida; mide. Un
+nombre que miente sobre lo que hace una funcion es la peor clase de documentacion.
+
+**`sede.id` pasa a autoincremental**: el usuario dice que habra mas sedes, y dar de alta la
+octava tiene que ser un INSERT y no una migracion.
+
+**Juego de datos rehecho a escala real: 99 trabajadoras y 3 943 marcaciones** (antes 13 y 457).
+Con doce personas ninguna consulta parece lenta y no se prueba nada sobre el cambio de turno.
+
+**Saturacion: medido, no estimado.** `sp_contexto_marcacion`, que corre en **cada** marcacion,
+tarda **0,7 ms**; el cronograma semanal de una sede, 4,2 ms; el diario, 2,1 ms. **El cuello de
+botella no es la base de datos** —una conexion sola haria mas de mil marcaciones por segundo—
+sino decodificar fotos. Esa medida sigue en pie: 4 decodificaciones simultaneas, y la
+**marcacion se guarda ANTES de procesar la foto**, para que una cola de fotos no sea una cola
+de personas esperando.
+
+**Estado:** los cuatro scripts recargados de cero, **22 pruebas Java, todas pasan**. Se
+eliminaron `Cargo.java`, `TipoJornada.java` y `MotivoRechazo.java`; entro `TipoIncidencia.java`.
+
+**No hecho:** el generador de Excel, la capa `bd` y la capa `control` siguen vacias.

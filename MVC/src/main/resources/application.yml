@@ -1,0 +1,95 @@
+spring:
+  application:
+    name: asistencia
+
+  # ---------------------------------------------------------------
+  # Base de datos
+  # Usuario y clave se leen de variables de entorno. Los valores
+  # despues de ":" son solo el respaldo para desarrollo local.
+  # NUNCA poner aqui la clave del servidor de Oracle.
+  # ---------------------------------------------------------------
+  datasource:
+    url: jdbc:mysql://localhost:3306/asistencia_loayza?connectionTimeZone=America/Lima&characterEncoding=UTF-8&useSSL=false&allowPublicKeyRetrieval=true
+    username: ${DB_USER:asistencia}
+    password: ${DB_PASS:asistencia}
+    hikari:
+      pool-name: asistencia-pool
+      # Dimensionado para la rafaga del cambio de turno: ~100 personas
+      # hoy (7 sedes x 14) y mas cuando abran sedes nuevas.
+      #
+      # 10 conexiones parecen pocas para 100 personas, y no lo son: la
+      # consulta que corre en cada marcacion tarda 0,7 ms medidos, y el
+      # cronograma semanal entero de una sede, 4 ms. Una conexion hace
+      # mas de mil marcaciones por segundo. El cuello de botella de este
+      # sistema NO es la base de datos: es decodificar las fotos, y eso
+      # se limita aparte, abajo.
+      maximum-pool-size: 10
+      minimum-idle: 2
+
+  thymeleaf:
+    # false en desarrollo para ver los cambios sin reiniciar.
+    # En el servidor se sobreescribe a true.
+    cache: false
+
+  servlet:
+    multipart:
+      # Segunda mitad de la barrera 1 de ADR-007. El limite de 2 MB va
+      # configurado en Nginx Y aqui: si alguien saltara el proxy, el
+      # limite sigue puesto.
+      max-file-size: 2MB
+      max-request-size: 2MB
+
+server:
+  port: 8080
+  servlet:
+    encoding:
+      charset: UTF-8
+      force: true
+  tomcat:
+    threads:
+      # 50 hilos, dimensionado a mano y no lo que venga por defecto (ADR-010).
+      max: 50
+
+# ===================================================================
+# Reglas del negocio que son decisiones, no constantes sueltas.
+# Cada una remite al ADR que la fijo, para que nadie las cambie
+# por accidente y para que el informe pueda citarlas.
+# ===================================================================
+asistencia:
+  marcacion:
+    # ===============================================================
+    # AQUI NO HAY NINGUN LIMITE, Y ES LA DECISION (ADR-012).
+    #
+    # Hasta el 2026-09-20 esta seccion tenia tres numeros:
+    #   cooldown-segundos: 30
+    #   tope-diario: 12
+    #   cola-antiguedad-maxima-horas: 2
+    #
+    # Los tres podian invalidar la marcacion de una persona real, y el
+    # cliente fue claro: las trabajadoras marcan con prisa y que se le
+    # invalide una marcacion es el peor fallo posible del sistema.
+    # Se quitaron los tres. No se "subieron mucho": se quitaron, para
+    # que nadie los reactive pensando que solo hay que afinarlos.
+    #
+    # Lo raro ya no se rechaza: se guarda y se anota en la tabla
+    # incidencia, y una persona lo mira.
+    # ===============================================================
+    # Umbral de segundos para ANOTAR (no rechazar) un envio duplicado.
+    duplicado-segundos: 10
+    # Horas de retraso a partir de las cuales una marcacion encolada se
+    # ANOTA (no se rechaza) como COLA_MUY_ANTIGUA.
+    cola-aviso-horas: 2
+
+  foto:
+    # ADR-007, barrera 2: la bomba de descompresion. Las dimensiones se
+    # leen de la cabecera ANTES de decodificar. 5000 x 5000 px.
+    max-pixeles: 25000000
+    # ADR-010: la medida que de verdad evita que la rafaga tumbe la JVM.
+    # Una rafaga hace cola en vez de reventar la memoria.
+    decodificaciones-simultaneas: 4
+    # ADR-002: la foto completa se purga a los 3 meses; la miniatura queda.
+    retencion-dias: 90
+
+logging:
+  level:
+    pe.loayza.asistencia: DEBUG

@@ -133,20 +133,24 @@ Reporta primero, corrige después de que el usuario decida.
 
 ## 7. Herramientas y limitaciones del entorno
 
-Estado verificado el 2026-09-05 en esta máquina, **después** de que el usuario instalara el
-toolchain:
+**Reverificado el 2026-09-20** al empezar el backend. La tabla anterior (2026-09-05) había
+quedado desfasada en cuatro puntos; esta es la buena:
 
 | Herramienta | Estado | Ruta / versión |
 |---|---|---|
-| Python | ✅ 3.14.7 | `C:\Python314\python.exe` |
-| Java / javac | ✅ 26.0.2.1 | `C:\Program Files\Common Files\Oracle\Java\javapath` |
-| Node / npm | ✅ 24.20.0 / 11.19.0 | `C:\Program Files\nodejs` |
-| Maven | ✅ 3.9.16 | `%LOCALAPPDATA%\Programs\apache-maven-3.9.16\bin` |
-| `JAVA_HOME` | ✅ definido (ámbito **máquina**) | `C:\Program Files\Java\jdk-26.0.2.1` |
-| Chocolatey | ✅ | `C:\ProgramData\chocolatey\bin` — se usó para instalar Python |
+| Java / javac | ✅ **26** | `C:\Program Files\Java\jdk-26\bin` |
+| `JAVA_HOME` | ✅ ámbito **máquina** | `C:\Program Files\Java\jdk-26` |
+| Maven | ❌ **desapareció del disco** | Ya no hace falta: se usa el **wrapper** (`MVC/mvnw.cmd`) |
+| Python | ✅ **3.13** | `C:\Python313\python.exe` |
+| MySQL | ✅ **8.0, servicio `MySQL80` corriendo** | `C:\Program Files\MySQL\MySQL Server 8.0` — el cliente **no** está en el PATH |
+| Docker | ❌ no instalado | No hace falta |
 | `unzip` | ✅ | `/usr/bin/unzip` |
 
-**El toolchain está completo.** No falta nada para generar, compilar y correr el proyecto.
+> **Maven ya no se instala.** Entre el 5 y el 20 de septiembre desapareció de disco, no solo
+> del PATH. En vez de reinstalarlo, el proyecto usa el **Maven Wrapper**, que viaja dentro de
+> `MVC/` y descarga su propio Maven 3.9.16 la primera vez. Así compila igual en esta máquina,
+> en la de la compañera y en el servidor ARM de Oracle, **sin instalar nada**. Se invoca
+> `.\mvnw.cmd` en Windows y `./mvnw` en Linux, nunca `mvn`.
 
 **El PATH del shell de esta sesión está desactualizado**: se capturó antes de la
 instalación, así que `python`, `java` y `node` "no se encuentran" aunque estén instalados.
@@ -201,10 +205,15 @@ $b = "$env:LOCALAPPDATA\Programs\apache-maven-3.9.16\bin"
 - **Los heredocs de Bash fallan en este entorno** (finales de línea CRLF rompen el
   terminador). Para escribir páginas del wiki usa la herramienta Write, no `cat <<EOF`.
 
-**Compatibilidad con Spring Boot** (consultado a `start.spring.io/metadata/client` el
-2026-09-05): la versión por defecto es **Spring Boot 4.1.1** y las versiones de Java
-ofrecidas son **26, 25, 21 y 17**. El JDK 26 instalado está soportado, así que **no hace
-falta un segundo JDK**.
+**Spring Boot** (reconsultado el 2026-09-20): la versión por defecto sigue siendo
+**4.1.1**, pero las versiones de Java ofrecidas cambiaron a **27, 25, 21 y 17** — el 26 ya
+no está. El proyecto compila con **Java 25**, que es LTS, lo soporta Boot 4.1.1 y el JDK 26
+instalado compila hacia él sin problema (`javac ... release 25`).
+
+> **Trampa de Initializr, comprobada el 2026-09-20.** El generador escribe en el `pom.xml`
+> `<version>4.1.1.RELEASE</version>`, y **ese artefacto no existe en Maven Central**: Spring
+> abandonó el sufijo `.RELEASE` hace años. La versión publicada de verdad es `4.1.1`, sin
+> sufijo. Si el build falla con *«Non-resolvable parent POM»*, es esto.
 
 ## 8. Contexto del dominio (resumen operativo)
 

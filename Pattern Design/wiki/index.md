@@ -59,7 +59,7 @@ De los siete descartados, solo State tiene página: los otros seis viven en
 | Página | Resumen |
 |---|---|
 | [[cuatro-capas]] | Vista / Control / Modelo / BD, con el reparto de patrones que fija PC-3. |
-| [[modelo-datos]] | Esquema MySQL 8: cinco tablas, índices y stored procedures. |
+| [[modelo-datos]] | Esquema MySQL 8: 6 tablas, índices y 17 procedimientos almacenados. |
 | [[estructura-repositorio]] | Las carpetas del entregable, los paquetes por capa y por qué se llaman así. |
 
 ## Decisiones
@@ -77,6 +77,8 @@ De los siete descartados, solo State tiene página: los otros seis viven en
 | [[adr-008-alcance-interfaz-y-cola-sin-senal]] | Doce huecos cerrados de golpe, reconciliación con el prototipo, cola sin señal y la pila de la interfaz. |
 | [[adr-009-estructura-y-dos-patrones-que-vuelven]] | Bridge y Command vuelven, la estructura del entregable y el plan a cuatro semanas. |
 | [[adr-010-sin-rechazos-oracle-y-nombre-libre]] | El sistema deja de rechazar marcaciones, se puede escribir el nombre, y la plataforma pasa a ser Oracle. |
+| [[adr-011-jpa-o-sql-a-mano]] | Por qué no se usan `@Entity` ni `ddl-auto`: el SQL es un entregable calificado y es la única fuente de verdad del esquema. |
+| [[adr-012-sin-cargos-y-sin-rechazos]] | Fuera cargo y tipo de jornada; el sistema deja de rechazar **cualquier** marcacion; exportacion diaria y semanal verificadas. |
 
 ## Fuentes
 

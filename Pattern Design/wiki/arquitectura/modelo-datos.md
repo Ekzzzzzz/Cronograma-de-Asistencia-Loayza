@@ -1,11 +1,11 @@
 ---
 titulo: Modelo de datos
 tipo: arquitectura
-estado: borrador
+estado: estable
 fuentes:
   - docs/Cronograma_Ejemplo.xlsx
   - decisiones del usuario (2026-09-06)
-actualizado: 2026-09-06
+actualizado: 2026-09-20
 tags: [arquitectura, base-de-datos, mysql, rendimiento]
 ---
 
@@ -15,7 +15,23 @@ Esquema para **MySQL 8**, motor InnoDB, `utf8mb4`, zona horaria `America/Lima`. 
 decisiones que lo sostienen están en [[adr-002-arquitectura-produccion]] y
 [[adr-003-login-y-cronograma-simple]]; el dimensionamiento que justifica cada índice, también.
 
-Cinco tablas. Ninguna guarda imágenes: las fotos van al disco y aquí solo viaja la ruta.
+**Seis tablas.** Ninguna guarda imágenes: las fotos van al disco y aquí solo viaja la ruta.
+
+> **REESCRITO el 2026-09-20 por [[adr-012-sin-cargos-y-sin-rechazos]].** Esta pagina describe
+> todavia el esquema anterior en varios puntos. Los tres cambios grandes:
+> **(1)** `trabajadora` ya **no tiene `cargo` ni `jornada`**; **(2)** `intento_rechazado` se
+> llama ahora **`incidencia`** y guarda lo que el sistema **aceptó** y no entendio, no lo que
+> impidio; **(3)** **no queda ni un solo rechazo**: ni tope de 12, ni cooldown, ni cola vencida.
+> El SQL cargado es la verdad; esta pagina va detras.
+>
+> **Escrito y cargado el 2026-09-20.** Este modelo ya no es un borrador: vive en
+> `SQL/01_esquema.sql` y `SQL/02_procedimientos.sql`, y se cargó en MySQL 8.0.42 con 457
+> marcaciones de prueba. Las diferencias entre lo que decía esta página y lo que se escribió
+> están en `## Tensiones`, al final.
+>
+> El encabezado decía «cinco tablas» mientras describía seis; corregido.
+> Si `@Entity` no aparece por ninguna parte, el porqué está en
+> [[adr-011-jpa-o-sql-a-mano]].
 
 ## `sede`
 
@@ -197,7 +213,13 @@ CREATE TABLE intento_rechazado (
 
 `sp_intentos_rechazados(p_desde, p_hasta)` devuelve la lista para la octava función del
 dashboard: sin ella la defensa actuaría en silencio y la administradora no se enteraría de nada
-([[adr-009-estructura-y-dos-patrones-que-vuelven]]). Con eso son **diez procedimientos**.
+([[adr-009-estructura-y-dos-patrones-que-vuelven]]).
+
+> **Corregido el 2026-09-20 al escribir el SQL.** Esta tabla se leía pero **nada la escribía**:
+> faltaba `sp_registrar_intento`. También se le añadió una columna `detalle VARCHAR(200)`,
+> porque saber que alguien chocó con el cooldown sirve de poco sin saber a cuántos segundos.
+> Y no lleva clave foránea a `trabajadora` **a propósito**: aquí también se anota a quien dijo
+> ser alguien que no existe.
 
 - `trabajadora_id` admite nulo porque un archivo inválido se rechaza **antes** de saber quién
   dice ser quien lo envía.
@@ -282,6 +304,20 @@ RC-03 los exige ([[cuatro-capas]]) y aquí tienen trabajo real, no ceremonial:
 | `sp_validar_marcacion` | Cooldown y tope diario en **una sola consulta** antes de procesar la foto. Ya **no valida la secuencia**: ver [[adr-010-sin-rechazos-oracle-y-nombre-libre]] |
 | `sp_cronograma_diario` | La hoja de un solo día de una sede, para la exportación diaria |
 | `sp_provisionales` | Las trabajadoras registradas por nombre libre que esperan confirmación |
+| `sp_intentos_rechazados` | La lista de rechazos del endpoint público, para el dashboard |
+| `sp_actualizar_jornada` | Escribe la celda del cronograma que Java ya calculó. **Nuevo, ver Tensiones** |
+| `sp_registrar_intento` | Anota un rechazo. Nada más escribía en `intento_rechazado` |
+| `sp_registrar_provisional` | Alta por nombre libre, reusando la provisional si ya existe |
+| `sp_marcar_acceso_admin` | Sella `ultimo_acceso` **después** de que Java verificó el hash |
+
+**Son dieciséis.** Esta tabla listaba once y el cuerpo de la página decía «diez»; ninguno de
+los dos números era correcto. Los cinco de abajo se añadieron al escribir el SQL, y cuatro de
+ellos no son ampliaciones de alcance sino **agujeros**: `intento_rechazado` y las provisionales
+se leían pero nada las escribía, y `administrador.ultimo_acceso` era una columna muerta.
+
+`sp_registrar_provisional` **reusa** la provisional activa que ya tenga ese nombre en vez de
+crear otra. Sin eso, quien escribe su nombre al entrar y al salir aparecería como dos personas
+distintas, cada una con medio turno.
 
 `sp_autenticar_admin` **devuelve el hash, no compara contraseñas**: la verificación BCrypt se
 hace en Java. Un procedimiento que reciba la contraseña en claro la dejaría escrita en los
@@ -299,7 +335,84 @@ atómicos, y resolverlo en el motor evita un ida y vuelta extra desde Java.
 - **Sin particionado ni archivado.** A 150 000 filas al año, hablar de particionar es
   Overengineering ([[s14-antipatrones]]). Se revisa si alguna vez se pasa de ~5 millones.
 
+## Tensiones
+
+### 1. `sp_registrar_marcacion` no recalcula la jornada. La parte, y es deliberado
+
+Esta página dice dos cosas que **no pueden ser ciertas a la vez**, y al escribir el SQL hubo
+que elegir:
+
+| Dónde | Qué dice |
+|---|---|
+| Tabla de procedimientos | `sp_registrar_marcacion` «inserta la marcación **y recalcula `jornada_diaria`** en una sola transacción» |
+| «Por qué existe esta tabla» | emparejar N entradas con N salidas «es lógica de dominio y vive en Java… escribirlo una segunda vez en SQL es *Shotgun Surgery*» |
+
+Recalcular la celda **es** emparejar. Si el procedimiento la recalcula, la regla está escrita
+en SQL y en Java; si no la recalcula, la promesa de atomicidad de la tabla queda sin cumplir.
+
+**Se resolvió partiendo el paso en dos, no quitando ninguna de las dos promesas:**
+
+1. `sp_registrar_marcacion` inserta y devuelve, **en la misma llamada**, todas las marcaciones
+   de esa trabajadora en esa sede ese día, ya ordenadas.
+2. Java arma los turnos —el Composite— y llama a `sp_actualizar_jornada` con la celda resuelta:
+   primera entrada, última salida, turnos, minutos y el texto literal.
+
+Las dos llamadas van dentro de **la misma transacción de Spring**, así que la atomicidad se
+mantiene; lo que cambia es quién la declara. La regla de emparejamiento sigue existiendo **una
+sola vez**, en Java, donde se puede probar sin base de datos.
+
+**El costo, dicho sin adornos:** la frase «atómico dentro del motor» deja de ser el argumento
+que justifica el procedimiento almacenado, porque ahora la transacción la abre Spring. El
+argumento que queda en pie es el otro y sigue siendo bueno: **un viaje a la base en vez de
+dos** en el momento de más carga. Va así al informe.
+
+### 2. Columnas que aparecieron al escribir el esquema
+
+Ninguna cambia una decisión; las tres tapan un hueco práctico:
+
+- **`trabajadora.creada_en`** — `sp_provisionales` ordena por antigüedad para que la
+  administradora revise primero lo más viejo. Sin esta columna no hay por qué ordenar.
+- **`jornada_diaria.actualizada_en`** — la celda se reescribe entera en cada marcación; saber
+  cuándo fue la última vez es lo primero que se mira cuando el cronograma no cuadra.
+- **`jornada_diaria.etiqueta`** pasa a `DEFAULT ''` porque es `NOT NULL` y la fila puede
+  crearse antes de que haya un par que escribir.
+
+Y **tres claves foráneas que esta página no declaraba**: `jornada_diaria` → `sede` y
+→ `trabajadora`, y `marcacion.corregida_por` → `administrador`. La primera tabla se escribe
+desde Java, y una sede inexistente ahí sería una fila fantasma en el cronograma exportado.
+
+### 3. «Turno abierto» estaba mal derivado, y lo destapó una prueba en Java
+
+Esta página decía, sobre `jornada_diaria`:
+
+> No hay columna `estado`. La tenía el borrador anterior… con State descartado y solo dos
+> situaciones posibles, "turno abierto" se deriva de `ultima_salida IS NULL`.
+
+**Es falso en cuanto hay más de un turno**, que es el caso central de este sistema. Quien hace
+9–1, 2–6 y vuelve a entrar a las 7 **tiene** última salida —las 6— y sin embargo sigue dentro
+del local. La regla vieja la daba por ida.
+
+El error venía de la frase «solo dos situaciones posibles»: es cierta para una jornada de un
+solo turno, y [[marcacion-multiple]] dice desde el principio que **ninguna regla puede asumir
+una entrada y una salida por día**. La derivación se escribió pensando en el caso simple.
+
+**La regla correcta es incluso más barata:** hay turno abierto si **la última marcación del día
+fue una entrada**. Ya está corregido en `sp_dia_sede` y en `Jornada.tieneTurnoAbierto()`.
+
+> **De dónde salió.** No se encontró leyendo: lo encontró la prueba
+> `JornadaTest.abiertoConSalidaPrevia`, escrita al programar el emparejamiento en Java. Es el
+> argumento de [[adr-011-jpa-o-sql-a-mano]] funcionando en la práctica — la lógica en Java se
+> prueba con un `new` y una lista, y las pruebas encuentran cosas que el SQL escondía.
+
+### 4. El tope de 12 y el cooldown no están en el SQL
+
+`sp_validar_marcacion` **no lleva escrito ni el 30 ni el 12**: devuelve la cuenta y los
+segundos medidos, y Java los compara contra `application.yml`. Así los dos números viven en un
+solo sitio. Es coherente con la regla de [[adr-010-sin-rechazos-oracle-y-nombre-libre]]: los
+procedimientos cuentan y guardan, quien decide es el modelo.
+
 ## Enlaces
 
-[[adr-002-arquitectura-produccion]] · [[marcacion-multiple]] · [[formato-cronograma-excel]] ·
-[[cuatro-capas]] · [[patron-observer]] · [[patron-composite]]
+[[adr-002-arquitectura-produccion]] · [[adr-011-jpa-o-sql-a-mano]] · [[marcacion-multiple]] ·
+[[formato-cronograma-excel]] · [[cuatro-capas]] · [[patron-observer]] · [[patron-composite]] ·
+[[estructura-repositorio]]

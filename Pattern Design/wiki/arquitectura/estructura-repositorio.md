@@ -5,7 +5,7 @@ estado: estable
 fuentes:
   - Archivos_de_clase/PC-3 (Anexo 1)
   - decisiones del usuario (2026-09-07)
-actualizado: 2026-09-07
+actualizado: 2026-09-20
 tags: [arquitectura, repositorio, entregable, pc3]
 ---
 
@@ -15,14 +15,26 @@ Cómo se organiza el código entregable. Dos nombres los fija [[pc3-entregable]]
 en el anexo— y el resto se decide pensando en **quién abre el repositorio**: un docente que
 evalúa una arquitectura de cuatro capas y que no va a leer este wiki.
 
+> **Creado el 2026-09-20.** `MVC/` ya existe y compila. Se generó con Spring Initializr
+> (Boot 4.1.1, Java 25, Maven) y se adaptó a las cuatro capas. Detalles del entorno y las
+> trampas encontradas en `CLAUDE.md` §7.
+>
+> **`SQL/` también existe y está cargado**, el mismo día: 6 tablas, 16 procedimientos, el
+> evento nocturno y 457 marcaciones de prueba en MySQL 8.0.42. Las 17 pruebas de humo pasan
+> entrando como el usuario `asistencia`, no como root. Lo que cambió respecto al diseño
+> escrito está en `## Tensiones` de [[modelo-datos]], y por qué no hay JPA, en
+> [[adr-011-jpa-o-sql-a-mano]].
+
 ## El árbol
 
 ```
 Cronograma-de-Asistencia-Loayza/
 ├─ MVC/                                    ← nombre exigido por el anexo
+│  ├─ mvnw, mvnw.cmd, .mvn/               el wrapper: compila sin instalar Maven
 │  ├─ pom.xml
 │  ├─ src/main/java/pe/loayza/asistencia/
 │  │  ├─ vista/                            Proxy · Observer · Command · Decorator
+│  │  │  └─ package-info.java              qué hace la capa y qué patrones viven aquí
 │  │  ├─ control/                          Facade · Factory
 │  │  ├─ modelo/                           Singleton · Composite · Bridge · Adapter
 │  │  ├─ bd/                               sin patrón: llama a los procedimientos
@@ -33,9 +45,9 @@ Cronograma-de-Asistencia-Loayza/
 │  │  └─ application.yml
 │  └─ src/test/java/…                      una prueba de integración por capa
 ├─ SQL/                                    ← nombre exigido por el anexo
-│  ├─ 01_esquema.sql                       6 tablas
-│  ├─ 02_procedimientos.sql                10 procedimientos almacenados
-│  ├─ 03_datos_prueba.sql                  7 sedes y dos semanas de marcaciones
+│  ├─ 01_esquema.sql                       6 tablas + el usuario de la aplicación
+│  ├─ 02_procedimientos.sql                16 procedimientos almacenados
+│  ├─ 03_datos_prueba.sql                  7 sedes, 13 personas, 2 semanas, 6 casos raros
 │  └─ 04_purga_fotos.sql                   el evento nocturno de los 3 meses
 ├─ Pattern Design/                         este wiki
 └─ README.md
