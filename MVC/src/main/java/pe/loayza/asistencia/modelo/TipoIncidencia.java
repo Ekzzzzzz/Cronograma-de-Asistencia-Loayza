@@ -81,7 +81,20 @@ public enum TipoIncidencia {
      * por delante -el boton se desactiva al pulsarlo-, que es una ayuda y no
      * un rechazo: si aun asi llegan dos, entran las dos.
      */
-    ENVIO_DUPLICADO("Llegaron dos marcaciones iguales casi al mismo tiempo");
+    ENVIO_DUPLICADO("Llegaron dos marcaciones iguales casi al mismo tiempo"),
+
+    /**
+     * Llego una foto cuya clave de envio no corresponde a ninguna marcacion
+     * (ADR-014). No deberia pasar: el celular manda la foto solo despues de
+     * que la marcacion se confirmo.
+     *
+     * <p><b>La foto se guarda y se avisa; nunca se tira</b> (decision del
+     * usuario, 2026-10-06). Si pasa, algo raro ocurrio por el camino, y la
+     * foto es justo la evidencia que hace falta para entender que. La
+     * incidencia lleva su ruta y su clave para que la administradora la vea
+     * y la relacione con quien corresponda.
+     */
+    FOTO_SIN_MARCACION("Llego una foto sin su marcacion; se guardo para revisarla");
 
     private final String descripcion;
 

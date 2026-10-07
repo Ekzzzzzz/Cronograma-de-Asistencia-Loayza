@@ -18,6 +18,8 @@ import pe.loayza.asistencia.modelo.TipoMarcacion;
  * {@code ENUM} de MySQL sin anadirlo a Java, esta conversion fallaria al leer
  * la fila, que es justo cuando hay que enterarse.
  *
+ * @param claveEnvio       la clave del toque, si se conoce (ADR-014).
+ * @param fotoRuta         la foto de una {@code FOTO_SIN_MARCACION}, para verla.
  * @param marcacionTipo    nulo si la incidencia no apunta a ninguna marcacion.
  * @param ip               en texto, ya convertida por {@code INET6_NTOA}.
  */
@@ -27,6 +29,8 @@ public record FilaIncidencia(
         TipoIncidencia tipo,
         String detalle,
         boolean revisada,
+        String claveEnvio,
+        String fotoRuta,
         Long marcacionId,
         TipoMarcacion marcacionTipo,
         LocalDateTime marcacionMomento,

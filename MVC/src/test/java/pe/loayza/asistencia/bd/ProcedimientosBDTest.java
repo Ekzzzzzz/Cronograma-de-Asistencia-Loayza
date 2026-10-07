@@ -224,7 +224,7 @@ class ProcedimientosBDTest {
         @DisplayName("Registrar, ver y marcar como revisada; un detalle largo se corta")
         void cicloCompleto() {
             LocalDateTime ahora = LocalDateTime.of(2099, 1, 5, 9, 0);
-            incidencias.registrar(new IncidenciaNueva(ahora, null, "10.0.0.1", null, null,
+            incidencias.registrar(IncidenciaNueva.sobre(ahora, null, "10.0.0.1", null, null,
                     TipoIncidencia.ENVIO_DUPLICADO, "x".repeat(300)));
 
             List<FilaIncidencia> nueva = incidencias.listar(ahora, ahora, true);
@@ -233,10 +233,46 @@ class ProcedimientosBDTest {
             assertThat(nueva.getFirst().detalle()).hasSize(Recorte.DETALLE).endsWith("…");
             assertThat(nueva.getFirst().marcacionTipo()).isNull();
 
+            assertThat(nueva.getFirst().claveEnvio()).isNull();
+            assertThat(nueva.getFirst().fotoRuta()).isNull();
+
             incidencias.marcarRevisada(nueva.getFirst().id());
             assertThat(incidencias.listar(ahora, ahora, true)).isEmpty();
             assertThat(incidencias.listar(ahora, ahora, false)).singleElement()
                     .extracting(FilaIncidencia::revisada).isEqualTo(true);
+        }
+    }
+
+    @Nested
+    @DisplayName("Foto sin marcacion: se guarda y se avisa (decision del usuario, 2026-10-06)")
+    class FotoSinMarcacion {
+
+        @Test
+        @DisplayName("La foto de una clave desconocida deja un aviso con su ruta, en la fila de esa persona")
+        void dejaElAviso() {
+            String clave = java.util.UUID.randomUUID().toString();
+            String ruta = "fotos/" + clave + ".jpg";
+            LocalDateTime llego = SABADO.atTime(10, 15);
+            int antes = cronograma.diaSede(1, SABADO).stream()
+                    .filter(f -> f.trabajadoraId() == 1).findFirst().orElseThrow().incidenciasPendientes();
+
+            // 1. La base dice que esa clave no tiene marcacion.
+            assertThat(fotos.registrarFoto(clave, ruta, null)).isEmpty();
+            // 2. La capa control (aqui, la prueba) deja el aviso con la foto.
+            incidencias.registrar(IncidenciaNueva.fotoSinMarcacion(llego, clave, ruta, "190.40.1.2", 1, 1));
+
+            FilaIncidencia aviso = incidencias.listar(llego, llego, true).getFirst();
+            assertThat(aviso.tipo()).isEqualTo(TipoIncidencia.FOTO_SIN_MARCACION);
+            assertThat(aviso.fotoRuta()).isEqualTo(ruta);
+            assertThat(aviso.claveEnvio()).isEqualTo(clave);
+            assertThat(aviso.marcacionId()).isNull();
+            assertThat(aviso.revisada()).isFalse();
+            assertThat(aviso.sede()).isEqualTo("Los Olivos");
+
+            // 3. Y sale junto a la persona en el dashboard, no en una lista aparte.
+            assertThat(cronograma.diaSede(1, SABADO).stream()
+                    .filter(f -> f.trabajadoraId() == 1).findFirst().orElseThrow().incidenciasPendientes())
+                    .isEqualTo(antes + 1);
         }
     }
 

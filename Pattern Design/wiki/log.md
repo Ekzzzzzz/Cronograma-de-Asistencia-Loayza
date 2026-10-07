@@ -1227,3 +1227,19 @@ distintas siguen siendo dos marcaciones, como manda ADR-012.
 **Pendiente para `control`:** `momento = hora del servidor − segundos transcurridos`, la
 frontera de 2 minutos y qué hacer con una foto de clave inexistente (hueco 37). **Para
 `vista`:** el service worker, la cola en IndexedDB y los dos vistos.
+
+## [2026-10-06] decision | Foto sin marcación: se guarda y se avisa
+
+**Decisión del usuario sobre el hueco 37:** si llega una foto cuya clave de envío no corresponde
+a ninguna marcación, **se guarda y queda un aviso para la administradora**. Nunca se tira: si
+pasa, algo raro ocurrió por el camino, y la foto es la evidencia para entender qué.
+
+- Nuevo tipo `FOTO_SIN_MARCACION` en el `ENUM` de `incidencia` y en `TipoIncidencia`.
+- `incidencia` gana `clave_envio` y `foto_ruta`, para que la administradora **vea** la foto y la
+  relacione con quien corresponda. `sp_registrar_incidencia` y `sp_incidencias` los llevan.
+- **Dónde vive cada cosa:** la regla («guardar y avisar») es de negocio y va en la capa
+  `control`; la capa `bd` solo pone las piezas. Los procedimientos siguen sin decidir nada.
+- El aviso sale **en la fila de la persona** que declaró el celular al mandar la foto, en la
+  pestaña del dashboard de ese día, no en una lista aparte. Hay prueba que lo comprueba.
+
+**52 pruebas, todas pasan.** Hueco 37 cerrado.

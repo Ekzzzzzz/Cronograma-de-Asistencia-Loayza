@@ -205,8 +205,12 @@ aparato, un teléfono compartido guarda y envía las de varias personas sin mezc
   hora recalculada sigue siendo la misma marcación; **8 reenvíos simultáneos de la misma clave
   dejan una sola marcación** (5 de 5 corridas); dos toques con claves distintas siguen siendo
   dos marcaciones.
-- Pendiente para `control`: calcular `momento = hora del servidor − segundos transcurridos` y la
-  frontera de 2 minutos. Pendiente para `vista`: el service worker, la cola y los dos vistos.
+- **Una foto cuya clave no tiene marcación se guarda y se avisa, nunca se tira** (decisión del
+  usuario). Incidencia `FOTO_SIN_MARCACION`, con columnas nuevas `clave_envio` y `foto_ruta` en
+  `incidencia`, para que la administradora vea la foto y la relacione.
+- Pendiente para `control`: calcular `momento = hora del servidor − segundos transcurridos`, la
+  frontera de 2 minutos, y llamar a la incidencia anterior cuando toque. Pendiente para
+  `vista`: el service worker, la cola y los dos vistos.
 
 ## Enlaces
 

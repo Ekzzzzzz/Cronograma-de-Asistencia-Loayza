@@ -205,10 +205,11 @@ Ver [[adr-008-alcance-interfaz-y-cola-sin-senal]]. Salen de reconciliar el proto
 36. **¿Cuántas trabajadoras usan iPhone?** En iPhone una marcación pendiente no se envía en
     segundo plano, ni con la página instalada ([[adr-014-marcar-sin-esperar]]): llega cuando
     vuelve a abrirse la página. Saber cuántas son dice cuánto importa.
-37. **¿Qué se hace con una foto cuya clave no existe?** `sp_registrar_foto` devuelve vacío y no
-    rompe nada, pero la capa `control` tiene que decidir: guardar el archivo y reintentar
-    asociarlo, o descartarlo con una incidencia. No debería pasar —el celular manda la foto
-    después del ✓✓—, y por eso mismo conviene que deje rastro si pasa.
+37. ✅ **Resuelto el 2026-10-06 (decisión del usuario): la foto se guarda y se avisa, nunca se
+    tira.** Incidencia nueva `FOTO_SIN_MARCACION`, que lleva la ruta de la foto y la clave de
+    envío para que la administradora la vea y la relacione. Sale en la fila de la persona que
+    declaró el celular, no en una lista aparte. Lo que queda para la capa `control` es solo
+    llamarla cuando `sp_registrar_foto` devuelva vacío.
 
 ## Huecos de contenido del wiki
 

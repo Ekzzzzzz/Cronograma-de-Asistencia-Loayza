@@ -37,7 +37,9 @@ public class IncidenciasBD {
                 .addValue("p_trabajadora", i.trabajadoraId())
                 .addValue("p_sede", i.sedeId())
                 .addValue("p_tipo", i.tipo().name())
-                .addValue("p_detalle", Recorte.aColumna(i.detalle(), Recorte.DETALLE)));
+                .addValue("p_detalle", Recorte.aColumna(i.detalle(), Recorte.DETALLE))
+                .addValue("p_clave_envio", i.claveEnvio())
+                .addValue("p_foto_ruta", i.fotoRuta()));
     }
 
     /**

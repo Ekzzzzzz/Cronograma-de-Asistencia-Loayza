@@ -306,8 +306,19 @@ CREATE TABLE incidencia (
                       'FOTO_SOSPECHOSA',
                       'HORA_DEL_TELEFONO',
                       'COLA_MUY_ANTIGUA',
-                      'ENVIO_DUPLICADO') NOT NULL,
+                      'ENVIO_DUPLICADO',
+                      -- Llego una foto cuya clave de envio no corresponde
+                      -- a ninguna marcacion (decision del usuario,
+                      -- 2026-10-06: se guarda y se avisa, nunca se tira).
+                      'FOTO_SIN_MARCACION') NOT NULL,
   detalle        VARCHAR(200) NULL,
+  -- La clave de envio del toque al que se refiere la incidencia, cuando
+  -- se conoce (ADR-014). Es lo que permite relacionar mas tarde una foto
+  -- sin marcacion con la marcacion que le corresponde.
+  clave_envio    CHAR(36) NULL,
+  -- La foto que acompana a la incidencia, cuando la hay: la de una
+  -- FOTO_SIN_MARCACION, para que la administradora la VEA y decida.
+  foto_ruta      VARCHAR(200) NULL,
   -- La administradora marca lo que ya reviso, para no volver a mirarlo.
   revisada       BOOLEAN NOT NULL DEFAULT FALSE,
   CONSTRAINT fk_inc_marc FOREIGN KEY (marcacion_id) REFERENCES marcacion(id),

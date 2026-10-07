@@ -42,7 +42,7 @@ MVC/                              Spring Boot 4.1.1 · Java 25 · Maven Wrapper
 │  ├─ vista/       ❌ solo package-info.java
 │  ├─ control/     ❌ solo package-info.java
 │  └─ bd/          ✅ los 20 procedimientos, circuito de marcación cerrado (ADR-013, 2026-10-06)
-└─ src/test/       ✅ 51 pruebas, todas pasan (22 del modelo + 29 de bd contra MySQL)
+└─ src/test/       ✅ 52 pruebas, todas pasan (22 del modelo + 30 de bd contra MySQL)
 
 SQL/               ✅ COMPLETO: 7 tablas, 20 procedimientos, evento de purga, semillero
 ```
@@ -113,7 +113,7 @@ propósito; la del servidor irá por variables de entorno y nunca a un archivo.
 cd MVC && ./mvnw -B test
 ```
 
-Tienen que pasar **51 pruebas**. Las del paquete `modelo` no necesitan MySQL; las 29 de `bd`
+Tienen que pasar **52 pruebas**. Las del paquete `modelo` no necesitan MySQL; las 30 de `bd`
 sí (son `@JdbcTest` contra la base real), así que **si fallan solo las de `bd`, el problema es
 la base de datos**. Ojo: `contextLoads()` **no** sirve para eso — pasa incluso sin MySQL
 instalado, porque el pool de conexiones no abre ninguna al arrancar.

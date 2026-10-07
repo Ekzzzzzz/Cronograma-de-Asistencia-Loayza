@@ -266,6 +266,10 @@ END$$
 --  p_marcacion apunta a la marcacion que SI se guardo. Es lo que
 --  permite que el dashboard ensene la incidencia junto a la hora, y no
 --  en una lista aparte que nadie abre.
+--
+--  p_clave_envio y p_foto_ruta (2026-10-06) sirven sobre todo a
+--  FOTO_SIN_MARCACION: la foto se guarda y queda aqui, a la vista de la
+--  administradora, con la clave para relacionarla despues.
 -- =====================================================================
 CREATE PROCEDURE sp_registrar_incidencia(
     IN p_momento     DATETIME,
@@ -274,11 +278,15 @@ CREATE PROCEDURE sp_registrar_incidencia(
     IN p_trabajadora SMALLINT UNSIGNED,
     IN p_sede        TINYINT  UNSIGNED,
     IN p_tipo        VARCHAR(24),
-    IN p_detalle     VARCHAR(200)
+    IN p_detalle     VARCHAR(200),
+    IN p_clave_envio CHAR(36),
+    IN p_foto_ruta   VARCHAR(200)
 )
 BEGIN
-    INSERT INTO incidencia (momento, marcacion_id, ip, trabajadora_id, sede_id, tipo, detalle)
-    VALUES (p_momento, p_marcacion, INET6_ATON(p_ip), p_trabajadora, p_sede, p_tipo, p_detalle);
+    INSERT INTO incidencia (momento, marcacion_id, ip, trabajadora_id, sede_id, tipo, detalle,
+                            clave_envio, foto_ruta)
+    VALUES (p_momento, p_marcacion, INET6_ATON(p_ip), p_trabajadora, p_sede, p_tipo, p_detalle,
+            p_clave_envio, p_foto_ruta);
 END$$
 
 -- =====================================================================
@@ -305,6 +313,8 @@ BEGIN
         i.tipo,
         i.detalle,
         i.revisada,
+        i.clave_envio,
+        i.foto_ruta,
         i.marcacion_id,
         m.tipo             AS marcacion_tipo,
         m.momento          AS marcacion_momento,
@@ -757,7 +767,10 @@ END$$
 --
 --  p_marcacion sale NULL si no hay ninguna marcacion con esa clave. No
 --  deberia pasar -el celular manda la foto solo despues del ✓✓-, y si
---  pasa NO es un error de la trabajadora: la capa control decide.
+--  pasa NO es un error de la trabajadora. Lo que se hace entonces lo
+--  decidio el usuario (2026-10-06): la foto SE GUARDA y la capa control
+--  deja una incidencia FOTO_SIN_MARCACION con su ruta y su clave, para
+--  que la administradora la vea. Nunca se tira.
 -- =====================================================================
 CREATE PROCEDURE sp_registrar_foto(
     IN  p_clave_envio CHAR(36),
