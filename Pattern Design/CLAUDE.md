@@ -133,53 +133,68 @@ Reporta primero, corrige después de que el usuario decida.
 
 ## 7. Herramientas y limitaciones del entorno
 
-**Reverificado el 2026-09-20** al empezar el backend. La tabla anterior (2026-09-05) había
-quedado desfasada en cuatro puntos; esta es la buena:
+**Reverificado el 2026-10-06** al retomar el proyecto **en otro ordenador**. El trabajo del
+2026-09-05 al 2026-09-20 se hizo en una máquina distinta; la tabla de esa máquina quedó
+desfasada en cinco puntos respecto a esta. Esta es la buena:
 
 | Herramienta | Estado | Ruta / versión |
 |---|---|---|
-| Java / javac | ✅ **26** | `C:\Program Files\Java\jdk-26\bin` |
-| `JAVA_HOME` | ✅ ámbito **máquina** | `C:\Program Files\Java\jdk-26` |
-| Maven | ❌ **desapareció del disco** | Ya no hace falta: se usa el **wrapper** (`MVC/mvnw.cmd`) |
-| Python | ✅ **3.13** | `C:\Python313\python.exe` |
-| MySQL | ✅ **8.0, servicio `MySQL80` corriendo** | `C:\Program Files\MySQL\MySQL Server 8.0` — el cliente **no** está en el PATH |
+| Java / javac | ✅ **26.0.2.1** | `C:\Program Files\Java\jdk-26.0.2.1` (resuelve vía `C:\Program Files\Common Files\Oracle\Java\javapath`) |
+| `JAVA_HOME` | ✅ ámbito **máquina** | `C:\Program Files\Java\jdk-26.0.2.1` |
+| Maven Wrapper | ✅ **la única forma de compilar** | `MVC/mvnw.cmd` — ya descargó su Maven 3.9.16 en `~/.m2/wrapper/dists` |
+| Maven suelto | ⚠️ instalado y en el PATH, **no se usa** | `%LOCALAPPDATA%\Programs\apache-maven-3.9.16` |
+| Python | ✅ **3.14.7** | `C:\Python314\python.exe` |
+| Node | ✅ | `C:\Program Files\nodejs` |
+| **MySQL** | ✅ **8.0.46, servicio `MySQL80` automático** (instalado el 2026-10-06) | `C:\Program Files\MySQL\MySQL Server 8.0\bin` — el cliente **no** está en el PATH |
+| Chocolatey / winget | ✅ | `C:\ProgramData\chocolatey`, `WindowsApps\winget.exe` |
 | Docker | ❌ no instalado | No hace falta |
 | `unzip` | ✅ | `/usr/bin/unzip` |
 
-> **Maven ya no se instala.** Entre el 5 y el 20 de septiembre desapareció de disco, no solo
-> del PATH. En vez de reinstalarlo, el proyecto usa el **Maven Wrapper**, que viaja dentro de
-> `MVC/` y descarga su propio Maven 3.9.16 la primera vez. Así compila igual en esta máquina,
-> en la de la compañera y en el servidor ARM de Oracle, **sin instalar nada**. Se invoca
-> `.\mvnw.cmd` en Windows y `./mvnw` en Linux, nunca `mvn`.
+> **Que esta máquina tenga `mvn` en el PATH no cambia la regla.** El proyecto se compila
+> **siempre** con el wrapper: `.\mvnw.cmd` en Windows y `./mvnw` en Linux, nunca `mvn`. En la
+> máquina anterior Maven desapareció del disco entre dos sesiones; el wrapper viaja dentro de
+> `MVC/` y descarga su propio Maven, así que compila igual en las dos máquinas del equipo y en
+> el servidor ARM de Oracle **sin depender de lo que haya instalado**.
 
-**El PATH del shell de esta sesión está desactualizado**: se capturó antes de la
-instalación, así que `python`, `java` y `node` "no se encuentran" aunque estén instalados.
-Exporta el PATH en cada comando hasta reiniciar la sesión:
+> **`contextLoads()` NO comprueba MySQL todavía.** Verificado el 2026-10-06: pasa **sin MySQL
+> instalado**. Spring Boot crea el pool de Hikari de forma perezosa —no abre ninguna conexión
+> hasta que alguien pide la primera— y mientras la capa `bd` esté vacía nadie la pide. Las 22
+> pruebas en verde **no decían nada de la base de datos**. Sigue siendo perezoso con la capa
+> `bd` escrita (los `SimpleJdbcCall` leen el catálogo en su primer uso, no al arrancar). **La
+> verificación contra MySQL la dan las pruebas `@JdbcTest` de `src/test/.../bd/`**: si fallan
+> esas y no las de `modelo/`, el problema es la base, no el código.
 
-```bash
-export PATH="/c/Python314:/c/Program Files/Common Files/Oracle/Java/javapath:/c/Program Files/nodejs:$PATH"
-```
+En esta máquina **el PATH del shell está al día**: `java`, `javac`, `python`, `node` y `unzip`
+se resuelven tanto desde PowerShell como desde Bash sin exportar nada.
 
-**El PATH de usuario es frágil en esta máquina.** Verificado el 2026-09-05: entre dos
-sesiones, la instalación de Chocolatey y Python reescribió el PATH de usuario y **borró la
-entrada de Maven**, dejando `mvn` irresoluble aunque los binarios seguían intactos en disco.
-La entrada muerta `C:\Program Files\Java\jdk-26\bin` desapareció en el mismo cambio y
-`JAVA_HOME` pasó de ámbito usuario a ámbito máquina.
-
-Moraleja: **antes de dar por bueno el entorno, comprueba que `mvn`, `java` y `python` se
-resuelvan de verdad**, no que estén instalados. Comando de diagnóstico:
+**El PATH es frágil, y por eso se comprueba en vez de suponerlo.** En la máquina anterior,
+entre dos sesiones, la instalación de Chocolatey y Python reescribió el PATH de usuario y
+borró la entrada de Maven; más tarde Maven desapareció del disco entero. Moraleja: **antes de
+dar por bueno el entorno, comprueba que las herramientas se resuelvan de verdad**, no que
+estén instaladas. Comando de diagnóstico:
 
 ```powershell
 $env:Path = [Environment]::GetEnvironmentVariable('Path','Machine') + ';' + [Environment]::GetEnvironmentVariable('Path','User')
-foreach ($t in @('java','javac','mvn','python','node')) { Get-Command $t -ErrorAction SilentlyContinue | Select-Object Name, Source }
+foreach ($t in @('java','javac','mysql','python','node')) { $c = Get-Command $t -ErrorAction SilentlyContinue; if ($c) { "$t -> $($c.Source)" } else { "$t -> NO SE RESUELVE" } }
+Get-Service | Where-Object { $_.Name -match 'mysql' } | Select-Object Name, Status
 ```
 
-Si falta Maven, se reañade con:
+El cliente `mysql` **no suele quedar en el PATH** aunque MySQL esté instalado: buscarlo en
+`C:\Program Files\MySQL\MySQL Server 8.0\bin`. Si tampoco está ahí, comprobar el servicio
+antes de concluir nada.
 
-```powershell
-$b = "$env:LOCALAPPDATA\Programs\apache-maven-3.9.16\bin"
-[Environment]::SetEnvironmentVariable('Path', [Environment]::GetEnvironmentVariable('Path','User').TrimEnd(';') + ";$b", 'User')
-```
+> **Trampa de PowerShell 5.1 al cargar los `.sql`, comprobada el 2026-10-06.** En Windows
+> PowerShell 5.1, `$OutputEncoding` vale `us-ascii`: pasar un script con
+> `Get-Content … | mysql` convierte **en silencio** cada tilde y cada eñe en `?`. Se carga con
+> `cmd`, que entrega el archivo byte a byte:
+>
+> ```powershell
+> $env:Path += ';C:\Program Files\MySQL\MySQL Server 8.0\bin'
+> cmd /c "mysql -u root -p --default-character-set=utf8mb4 asistencia_loayza < SQL\02_procedimientos.sql"
+> ```
+>
+> `01_esquema.sql` va sin el nombre de la base (la crea él). Recargar `02` no toca datos;
+> recargar `03` **borra y vuelve a sembrar** todo.
 
 - Los tres scripts de `tools/` (`extraer.py`, `extraer_pdf.py`, `pluscode.py`) **ya
   funcionan**. `extraer_pdf.py` desbloqueó los PDF del curso.

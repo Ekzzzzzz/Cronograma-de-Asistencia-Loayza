@@ -28,6 +28,7 @@ USE asistencia_loayza;
 
 SET FOREIGN_KEY_CHECKS = 0;
 TRUNCATE TABLE incidencia;
+TRUNCATE TABLE foto_marcacion;
 TRUNCATE TABLE jornada_diaria;
 TRUNCATE TABLE marcacion;
 TRUNCATE TABLE trabajadora;
@@ -198,22 +199,14 @@ BEGIN
                     DATE_FORMAT(v_e2, '%l:%i%p'), ' - ', DATE_FORMAT(v_s2, '%l:%i%p'));
             END IF;
 
-            INSERT INTO marcacion (trabajadora_id, sede_id, tipo, momento, foto_ruta, foto_mini_ruta)
-            VALUES (v_trab, v_sede, 'ENTRADA', v_e1,
-                    CONCAT('fotos/', v_trab, '-', UNIX_TIMESTAMP(v_e1), '.jpg'),
-                    CONCAT('mini/',  v_trab, '-', UNIX_TIMESTAMP(v_e1), '.jpg')),
-                   (v_trab, v_sede, 'SALIDA',  v_s1,
-                    CONCAT('fotos/', v_trab, '-', UNIX_TIMESTAMP(v_s1), '.jpg'),
-                    CONCAT('mini/',  v_trab, '-', UNIX_TIMESTAMP(v_s1), '.jpg'));
+            INSERT INTO marcacion (trabajadora_id, sede_id, tipo, momento)
+            VALUES (v_trab, v_sede, 'ENTRADA', v_e1),
+                   (v_trab, v_sede, 'SALIDA',  v_s1);
 
             IF v_e2 IS NOT NULL THEN
-                INSERT INTO marcacion (trabajadora_id, sede_id, tipo, momento, foto_ruta, foto_mini_ruta)
-                VALUES (v_trab, v_sede, 'ENTRADA', v_e2,
-                        CONCAT('fotos/', v_trab, '-', UNIX_TIMESTAMP(v_e2), '.jpg'),
-                        CONCAT('mini/',  v_trab, '-', UNIX_TIMESTAMP(v_e2), '.jpg')),
-                       (v_trab, v_sede, 'SALIDA',  v_s2,
-                        CONCAT('fotos/', v_trab, '-', UNIX_TIMESTAMP(v_s2), '.jpg'),
-                        CONCAT('mini/',  v_trab, '-', UNIX_TIMESTAMP(v_s2), '.jpg'));
+                INSERT INTO marcacion (trabajadora_id, sede_id, tipo, momento)
+                VALUES (v_trab, v_sede, 'ENTRADA', v_e2),
+                       (v_trab, v_sede, 'SALIDA',  v_s2);
             END IF;
 
             INSERT INTO jornada_diaria
@@ -229,6 +222,16 @@ DELIMITER ;
 
 CALL sp_tmp_semilla();
 DROP PROCEDURE sp_tmp_semilla;
+
+-- Las fotos van en su propia tabla desde ADR-014: llegan despues que la
+-- marcacion, en otro envio. En el semillero todas llegaron, unos
+-- segundos despues; los casos raros de abajo quitan las que fallaron.
+INSERT INTO foto_marcacion (marcacion_id, ruta, mini_ruta, recibida_en)
+SELECT id,
+       CONCAT('fotos/', trabajadora_id, '-', UNIX_TIMESTAMP(momento), '.jpg'),
+       CONCAT('mini/',  trabajadora_id, '-', UNIX_TIMESTAMP(momento), '.jpg'),
+       momento + INTERVAL 4 SECOND
+  FROM marcacion;
 
 -- =====================================================================
 --  Los casos raros
@@ -249,7 +252,12 @@ SET @jue = @sab - INTERVAL 2 DAY;
 --  1. Olvido de salida.  La trabajadora 3 entro el sabado y no cerro.
 --     La celda queda "3:0XPM -", con el hueco A LA VISTA: el sistema no
 --     inventa la hora que falta. Asi lo pidio el usuario.
+--     (Se borra la salida que el bucle sembro; primero su foto, que desde
+--     ADR-014 vive en otra tabla y apunta a ella.)
 -- ---------------------------------------------------------------------
+DELETE f FROM foto_marcacion f
+  JOIN marcacion m ON m.id = f.marcacion_id
+ WHERE m.trabajadora_id = 3 AND m.fecha = @sab AND m.tipo = 'SALIDA';
 DELETE FROM marcacion
  WHERE trabajadora_id = 3 AND fecha = @sab AND tipo = 'SALIDA';
 
@@ -266,9 +274,13 @@ UPDATE jornada_diaria j
 --     Ninguna regla del sistema puede asumir una entrada y una salida
 --     por dia: este caso es el que lo demuestra.
 -- ---------------------------------------------------------------------
-INSERT INTO marcacion (trabajadora_id, sede_id, tipo, momento, notas, foto_ruta, foto_mini_ruta) VALUES
-  (1, 7, 'ENTRADA', TIMESTAMP(@vie, '19:05:00'), 'Apoyo en Miraflores', 'fotos/1-apoyo-e.jpg', 'mini/1-apoyo-e.jpg'),
-  (1, 7, 'SALIDA',  TIMESTAMP(@vie, '21:40:00'), NULL,                  'fotos/1-apoyo-s.jpg', 'mini/1-apoyo-s.jpg');
+INSERT INTO marcacion (trabajadora_id, sede_id, tipo, momento, notas) VALUES
+  (1, 7, 'ENTRADA', TIMESTAMP(@vie, '19:05:00'), 'Apoyo en Miraflores'),
+  (1, 7, 'SALIDA',  TIMESTAMP(@vie, '21:40:00'), NULL);
+INSERT INTO foto_marcacion (marcacion_id, ruta, mini_ruta, recibida_en)
+SELECT id, CONCAT('fotos/1-apoyo-', LOWER(LEFT(tipo, 1)), '.jpg'),
+           CONCAT('mini/1-apoyo-',  LOWER(LEFT(tipo, 1)), '.jpg'), momento + INTERVAL 4 SECOND
+  FROM marcacion WHERE trabajadora_id = 1 AND sede_id = 7 AND fecha = @vie;
 
 INSERT INTO jornada_diaria
     (sede_id, fecha, trabajadora_id, primera_entrada, ultima_salida, turnos, minutos, etiqueta)
@@ -302,9 +314,13 @@ SELECT m.momento_recibido, m.id, m.trabajadora_id, m.sede_id, 'HORA_DEL_TELEFONO
 -- ---------------------------------------------------------------------
 SET @prov = (SELECT id FROM trabajadora WHERE provisional = TRUE LIMIT 1);
 
-INSERT INTO marcacion (trabajadora_id, sede_id, tipo, momento, notas, foto_ruta, foto_mini_ruta) VALUES
-  (@prov, 4, 'ENTRADA', TIMESTAMP(@sab, '08:58:00'), 'No aparecia en la lista', 'fotos/p-e.jpg', 'mini/p-e.jpg'),
-  (@prov, 4, 'SALIDA',  TIMESTAMP(@sab, '14:12:00'), NULL,                      'fotos/p-s.jpg', 'mini/p-s.jpg');
+INSERT INTO marcacion (trabajadora_id, sede_id, tipo, momento, notas) VALUES
+  (@prov, 4, 'ENTRADA', TIMESTAMP(@sab, '08:58:00'), 'No aparecia en la lista'),
+  (@prov, 4, 'SALIDA',  TIMESTAMP(@sab, '14:12:00'), NULL);
+INSERT INTO foto_marcacion (marcacion_id, ruta, mini_ruta, recibida_en)
+SELECT id, CONCAT('fotos/p-', LOWER(LEFT(tipo, 1)), '.jpg'),
+           CONCAT('mini/p-',  LOWER(LEFT(tipo, 1)), '.jpg'), momento + INTERVAL 4 SECOND
+  FROM marcacion WHERE trabajadora_id = @prov;
 
 INSERT INTO jornada_diaria
     (sede_id, fecha, trabajadora_id, primera_entrada, ultima_salida, turnos, minutos, etiqueta)
@@ -321,11 +337,12 @@ VALUES (4, @sab, @prov, '08:58:00', '14:12:00', 1, 314, '8:58AM - 2:12PM');
 UPDATE marcacion
    SET origen         = 'ADMINISTRADORA',
        corregida_por  = 1,
-       motivo         = 'Olvido de salida confirmado por telefono con la sede',
-       foto_ruta      = NULL,
-       foto_mini_ruta = NULL
+       motivo         = 'Olvido de salida confirmado por telefono con la sede'
  WHERE trabajadora_id = 7 AND fecha = @jue AND tipo = 'SALIDA'
  ORDER BY momento DESC LIMIT 1;
+DELETE f FROM foto_marcacion f
+  JOIN marcacion m ON m.id = f.marcacion_id
+ WHERE m.trabajadora_id = 7 AND m.fecha = @jue AND m.origen = 'ADMINISTRADORA';
 
 -- ---------------------------------------------------------------------
 --  6. Marcaciones ACEPTADAS con algo raro.  Ninguna se rechazo: las
@@ -337,38 +354,77 @@ UPDATE marcacion
 --     lo sumo, es la foto.
 -- ---------------------------------------------------------------------
 
+--  OJO AL ESCRIBIR UN CASO NUEVO AQUI: si se inserta una marcacion, hay
+--  que dejar su celda de jornada_diaria como la dejaria el sistema, con
+--  la misma regla del bucle de arriba: la celda se construye con los
+--  MISMOS valores que se acaban de insertar, no reemplazando a mano.
+--  Hasta el 2026-10-06 estos cuatro casos insertaban marcaciones sin
+--  tocar su celda, y la prueba CruceModeloContraBaseTest -que recalcula
+--  cada celda en Java- encontro cinco celdas que no cuadraban. Es el
+--  mismo fallo que tenian los conteos MANANA/TARDE del Excel del
+--  cliente: un agregado copiado y nunca recalculado.
+
 -- 6a. Doble envio del mismo segundo: el boton se pulso dos veces.
 --     Se guardan LAS DOS. Decidir cual sobra es decidir por ella.
-INSERT INTO marcacion (trabajadora_id, sede_id, tipo, momento, foto_ruta, foto_mini_ruta)
-VALUES (11, 4, 'ENTRADA', TIMESTAMP(@vie, '09:02:00'), 'fotos/11-d1.jpg', 'mini/11-d1.jpg');
+--     El duplicado copia el momento EXACTO de la entrada original (antes
+--     era una hora fija, 9:02, que no coincidia con nada). En la celda,
+--     la primera queda coja y la segunda forma el turno: con dos entradas
+--     seguidas el turno empieza en la segunda (Jornada.de, ADR-010).
+INSERT INTO marcacion (trabajadora_id, sede_id, tipo, momento)
+SELECT 11, 4, 'ENTRADA', m.momento
+  FROM marcacion m
+ WHERE m.trabajadora_id = 11 AND m.sede_id = 4 AND m.fecha = @vie AND m.tipo = 'ENTRADA'
+ ORDER BY m.momento
+ LIMIT 1;
 SET @m6a = LAST_INSERT_ID();
+INSERT INTO foto_marcacion (marcacion_id, ruta, mini_ruta, recibida_en)
+SELECT id, 'fotos/11-d1.jpg', 'mini/11-d1.jpg', momento + INTERVAL 4 SECOND FROM marcacion WHERE id = @m6a;
 INSERT INTO incidencia (momento, marcacion_id, ip, trabajadora_id, sede_id, tipo, detalle)
-VALUES (TIMESTAMP(@vie, '09:02:00'), @m6a, INET6_ATON('190.237.12.44'), 11, 4,
-        'ENVIO_DUPLICADO', 'Segundo envio identico a los 4 s');
+VALUES ((SELECT momento FROM marcacion WHERE id = @m6a), @m6a, INET6_ATON('190.237.12.44'), 11, 4,
+        'ENVIO_DUPLICADO', 'Segundo envio identico en el mismo segundo');
+UPDATE jornada_diaria
+   SET etiqueta = CONCAT(DATE_FORMAT(primera_entrada, '%l:%i%p'), ' -', '\n', etiqueta)
+ WHERE sede_id = 4 AND fecha = @vie AND trabajadora_id = 11;
 
 -- 6b. La foto no se pudo guardar. La MARCACION SI.
-INSERT INTO marcacion (trabajadora_id, sede_id, tipo, momento, foto_ruta, foto_mini_ruta)
-VALUES (13, 6, 'ENTRADA', TIMESTAMP(@sab, '09:01:00'), NULL, NULL);
-SET @m6b = LAST_INSERT_ID();
+--     Falla la foto de una marcacion que ya existia, que es como pasa de
+--     verdad: no aparece una entrada de mas, aparece una entrada sin foto.
+--     Por eso la celda no cambia.
+SET @m6b = (SELECT id FROM marcacion
+             WHERE trabajadora_id = 13 AND sede_id = 6 AND fecha = @sab AND tipo = 'ENTRADA'
+             ORDER BY momento LIMIT 1);
+DELETE FROM foto_marcacion WHERE marcacion_id = @m6b;
 INSERT INTO incidencia (momento, marcacion_id, ip, trabajadora_id, sede_id, tipo, detalle)
-VALUES (TIMESTAMP(@sab, '09:01:00'), @m6b, INET6_ATON('181.65.200.7'), 13, 6,
+VALUES ((SELECT momento FROM marcacion WHERE id = @m6b), @m6b, INET6_ATON('181.65.200.7'), 13, 6,
         'FOTO_NO_GUARDADA', 'La camara devolvio un archivo vacio');
 
 -- 6c. Foto con dimensiones absurdas: se descarto la FOTO, no la hora.
-INSERT INTO marcacion (trabajadora_id, sede_id, tipo, momento, foto_ruta, foto_mini_ruta)
-VALUES (17, 5, 'SALIDA', TIMESTAMP(@sab, '16:40:00'), NULL, NULL);
+--     Ademas es una SALIDA SIN ENTRADA en una sede que no es la suya (la
+--     17 es de San Borja): su celda en San Miguel es "- 4:40PM", con el
+--     hueco a la vista. Es el caso de ADR-010 que el dashboard tiene que
+--     saber pintar.
+INSERT INTO marcacion (trabajadora_id, sede_id, tipo, momento)
+VALUES (17, 5, 'SALIDA', TIMESTAMP(@sab, '16:40:00'));
 SET @m6c = LAST_INSERT_ID();
 INSERT INTO incidencia (momento, marcacion_id, ip, trabajadora_id, sede_id, tipo, detalle)
 VALUES (TIMESTAMP(@sab, '16:40:00'), @m6c, INET6_ATON('2001:1388:5::9'), 17, 5,
         'FOTO_SOSPECHOSA', '9000x9000 px; se guardo la marcacion sin foto');
+INSERT INTO jornada_diaria
+    (sede_id, fecha, trabajadora_id, primera_entrada, ultima_salida, turnos, minutos, etiqueta)
+VALUES (5, @sab, 17, NULL, '16:40:00', 0, 0, '- 4:40PM');
 
 -- 6d. Encolada tres horas. ANTES esto se rechazaba por COLA_VENCIDA.
 --     Ahora entra, se marca como hora del telefono y se ensena el
---     desfase: que decida una persona, no un umbral.
-INSERT INTO marcacion (trabajadora_id, sede_id, tipo, momento, fuente_hora, momento_recibido, foto_ruta, foto_mini_ruta)
-VALUES (23, 1, 'SALIDA', TIMESTAMP(@sab, '14:30:00'), 'DISPOSITIVO', TIMESTAMP(@sab, '17:50:00'),
-        'fotos/23-cola.jpg', 'mini/23-cola.jpg');
+--     desfase: que decida una persona, no un umbral. Tambien es una
+--     salida sin entrada en otra sede (la 23 es de La Molina).
+INSERT INTO marcacion (trabajadora_id, sede_id, tipo, momento, fuente_hora, momento_recibido)
+VALUES (23, 1, 'SALIDA', TIMESTAMP(@sab, '14:30:00'), 'DISPOSITIVO', TIMESTAMP(@sab, '17:50:00'));
 SET @m6d = LAST_INSERT_ID();
+INSERT INTO foto_marcacion (marcacion_id, ruta, mini_ruta, recibida_en)
+VALUES (@m6d, 'fotos/23-cola.jpg', 'mini/23-cola.jpg', TIMESTAMP(@sab, '17:50:04'));
+INSERT INTO jornada_diaria
+    (sede_id, fecha, trabajadora_id, primera_entrada, ultima_salida, turnos, minutos, etiqueta)
+VALUES (1, @sab, 23, NULL, '14:30:00', 0, 0, '- 2:30PM');
 INSERT INTO incidencia (momento, marcacion_id, ip, trabajadora_id, sede_id, tipo, detalle)
 VALUES (TIMESTAMP(@sab, '17:50:00'), @m6d, INET6_ATON('38.25.14.90'), 23, 1,
         'COLA_MUY_ANTIGUA', 'Estuvo 3 h 20 min en la cola del telefono');
@@ -382,7 +438,10 @@ UNION ALL SELECT '  provisionales',        COUNT(*) FROM trabajadora WHERE provi
 UNION ALL SELECT 'administradores',        COUNT(*) FROM administrador
 UNION ALL SELECT 'marcaciones',            COUNT(*) FROM marcacion
 UNION ALL SELECT '  con hora del telefono',COUNT(*) FROM marcacion WHERE fuente_hora = 'DISPOSITIVO'
-UNION ALL SELECT '  sin foto',             COUNT(*) FROM marcacion WHERE foto_ruta IS NULL
+UNION ALL SELECT '  sin foto',             COUNT(*) FROM marcacion m
+                                            LEFT JOIN foto_marcacion f ON f.marcacion_id = m.id
+                                           WHERE f.marcacion_id IS NULL
+UNION ALL SELECT 'fotos',                  COUNT(*) FROM foto_marcacion
 UNION ALL SELECT '  puestas a mano',       COUNT(*) FROM marcacion WHERE origen = 'ADMINISTRADORA'
 UNION ALL SELECT 'celdas de cronograma',   COUNT(*) FROM jornada_diaria
 UNION ALL SELECT '  con turno abierto',    COUNT(*) FROM jornada_diaria WHERE ultima_salida IS NULL

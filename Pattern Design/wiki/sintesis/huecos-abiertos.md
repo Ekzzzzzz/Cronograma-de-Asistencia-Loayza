@@ -5,7 +5,7 @@ estado: borrador
 fuentes:
   - brief del usuario (2026-09-05)
   - docs/Cronograma_Ejemplo.xlsx
-actualizado: 2026-09-20
+actualizado: 2026-10-06
 tags: [pendientes, decisiones, bloqueos]
 ---
 
@@ -169,6 +169,46 @@ Ver [[adr-008-alcance-interfaz-y-cola-sin-senal]]. Salen de reconciliar el proto
     que nadie lee y conviene quitarla del esquema en vez de dejarla muerta.
 29. **¿Qué pasa con una marcación provisional que nadie confirma?** Se guarda y espera, pero sin
     un plazo acaba siendo una bandeja que crece sola. Conviene acordar cada cuánto se revisa.
+
+> **Resueltos en [[adr-012-sin-cargos-y-sin-rechazos]]:** el 27 (sí, el tope de 12 cae del
+> todo, junto con el cooldown y la cola vencida) y el 28 (`cargo` no se usaba en ningún sitio
+> y se eliminó). Anotado aquí el 2026-10-06; ADR-012 los cerraba pero esta página no se
+> había actualizado.
+
+## Preguntas nuevas tras ADR-013 (capa `bd`)
+
+30. **`jornada_diaria.turnos` es `TINYINT UNSIGNED`, máximo 255.** Sin tope de marcaciones es
+    un tope escondido. Desde [[adr-013-la-transaccion-de-una-marcacion]] ya no cuesta ninguna
+    marcación, pero a partir de ahí la celda se congela. Pasarlo a `SMALLINT` es un cambio de
+    una palabra en `01_esquema.sql` y en `sp_actualizar_jornada`. **Falta decidirlo.**
+31. **No hay incidencia para «celda no recalculada».** Si falla la segunda mitad del circuito,
+    hoy queda un `ERROR` en el log, que nadie mira. ¿Se añade `CELDA_NO_RECALCULADA` al `ENUM` de
+    `incidencia` y a `TipoIncidencia`?
+32. ✅ **Resuelto el 2026-10-06.** Faltaban dos procedimientos: listar las sedes (sin él, el
+    Singleton `CatalogoSedes` no tenía de dónde cargarse) y listar el padrón para «¿Quién
+    eres?». Añadidos `sp_sedes` y `sp_padron`; el padrón **no devuelve el documento**, porque
+    alimenta un formulario público.
+33. ✅ **Resuelto el 2026-10-06 en [[adr-014-marcar-sin-esperar]].** La foto chocaba con la
+    inmutabilidad de la marcación. Ahora vive en `foto_marcacion`, llega en un envío aparte
+    **después** de la marcación, y ponerla es insertar en otra tabla, no editar. La regla 2 manda guardar la
+    marcación **antes** de procesar la foto, pero `foto_ruta` se escribe en el `INSERT`, la
+    marcación no se edita nunca, y no hay procedimiento que ponga la ruta después. Opción
+    natural: generar la clave de la foto (un UUID) antes de insertar y guardar el archivo
+    después; pero si el archivo falla, la fila apuntaría a una foto que no existe. Es una
+    decisión de la capa `control`.
+34. **`sp_purgar_fotos` marca pero nadie borra.** Pone `foto_purgada = TRUE`, y ningún
+    procedimiento devuelve qué archivos hay que borrar del almacén. Sin eso, la retención de 90
+    días es solo una bandera.
+35. **Una marcación de una trabajadora o sede que no existe sí falla**, por las claves foráneas
+    de `marcacion`. No es un rechazo por contenido sino por identidad, y la capa `control` tiene
+    que garantizar antes que la persona existe (o crearla como provisional).
+36. **¿Cuántas trabajadoras usan iPhone?** En iPhone una marcación pendiente no se envía en
+    segundo plano, ni con la página instalada ([[adr-014-marcar-sin-esperar]]): llega cuando
+    vuelve a abrirse la página. Saber cuántas son dice cuánto importa.
+37. **¿Qué se hace con una foto cuya clave no existe?** `sp_registrar_foto` devuelve vacío y no
+    rompe nada, pero la capa `control` tiene que decidir: guardar el archivo y reintentar
+    asociarlo, o descartarlo con una incidencia. No debería pasar —el celular manda la foto
+    después del ✓✓—, y por eso mismo conviene que deje rastro si pasa.
 
 ## Huecos de contenido del wiki
 

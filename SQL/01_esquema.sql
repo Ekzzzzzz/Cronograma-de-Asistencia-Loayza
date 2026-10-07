@@ -1,6 +1,6 @@
 -- =====================================================================
 --  Control de asistencia - Podologia Loayza
---  01_esquema.sql : base de datos, usuario de la aplicacion y 6 tablas
+--  01_esquema.sql : base de datos, usuario de la aplicacion y 7 tablas
 -- =====================================================================
 --  Motor  : MySQL 8.0
 --  Cotejo : utf8mb4_0900_ai_ci  (acentos y enie sin sorpresas)
@@ -135,10 +135,12 @@ CREATE TABLE administrador (
 --    - ningun ON DELETE CASCADE. Las marcaciones no se borran: son
 --      evidencia de jornada laboral.
 --
---  foto_ruta admite NULL POR DISENO, no por comodidad: si la foto
---  falla -viene rota, pesa demasiado, la camara devolvio basura- la
---  MARCACION SE GUARDA IGUAL y la incidencia queda anotada aparte. La
---  hora trabajada no depende de que la camara funcionara.
+--  LA FOTO NO VIVE AQUI (ADR-014, 2026-10-06). Vive en foto_marcacion y
+--  llega DESPUES, en un envio aparte. Asi la marcacion existe siempre
+--  antes que su foto -la regla 2: la foto nunca bloquea la marcacion- y
+--  ponerle la foto es INSERTAR en otra tabla, no editar esta. Si la
+--  foto no llega nunca, la marcacion se queda igual y el dashboard dice
+--  "sin foto".
 -- =====================================================================
 CREATE TABLE marcacion (
   id             BIGINT UNSIGNED AUTO_INCREMENT PRIMARY KEY,
@@ -163,12 +165,19 @@ CREATE TABLE marcacion (
 
   notas          VARCHAR(500) NULL,
 
-  -- Clave del blob, no ruta de disco.
-  foto_ruta      VARCHAR(200) NULL,
-  foto_mini_ruta VARCHAR(200) NULL,
-  -- Distingue "no tiene foto" de "la foto completa expiro a los 3 meses
-  -- y solo queda la miniatura".
-  foto_purgada   BOOLEAN NOT NULL DEFAULT FALSE,
+  -- La CLAVE DE ENVIO (ADR-014): un UUID que el celular genera al tocar
+  -- el boton. Con senal mala pasa que el servidor guarda la marcacion y
+  -- la respuesta no llega; el celular reenvia. Con la clave,
+  -- sp_registrar_marcacion reconoce el reenvio y devuelve la marcacion
+  -- que ya existe en vez de crear otra.
+  --
+  -- El indice NO es UNIQUE, a proposito: nada en esta tabla puede hacer
+  -- fallar un INSERT (ADR-012). Es una busqueda bajo el candado de la
+  -- persona, no una restriccion. Dos TOQUES son dos claves y entran los
+  -- dos; un toque ENVIADO DOS VECES es una clave y una marcacion.
+  --
+  -- NULL en las marcaciones que pone la administradora a mano.
+  clave_envio    CHAR(36) NULL,
 
   -- Correccion de olvidos: la administradora INSERTA una marcacion
   -- nueva, no edita la existente. El hecho sigue siendo inmutable y
@@ -188,7 +197,41 @@ CREATE TABLE marcacion (
   -- consulta del dashboard y de las dos exportaciones.
   INDEX idx_cronograma  (sede_id, fecha, trabajadora_id, momento),
   -- El historial cruza todas las sedes, asi que necesita su propio indice.
-  INDEX idx_trabajadora (trabajadora_id, fecha)
+  INDEX idx_trabajadora (trabajadora_id, fecha),
+  -- Reconocer un reenvio (ADR-014). No unico: ver clave_envio.
+  INDEX idx_clave_envio (clave_envio)
+) ENGINE=InnoDB;
+
+-- =====================================================================
+--  4b. foto_marcacion                             (ADR-014, 2026-10-06)
+-- ---------------------------------------------------------------------
+--  La foto de una marcacion, que llega DESPUES que la marcacion y en un
+--  envio aparte. Los datos de una marcacion pesan ~300 bytes y entran
+--  con una rayita de senal; la foto pesa ~100 KB. Si viajaran juntos,
+--  la foto -que es corroboracion- decidiria cuanto tarda en llegar la
+--  marcacion -que es el hecho-.
+--
+--  UNA foto por marcacion: la clave primaria ES la marcacion. Aqui una
+--  restriccion de unicidad si esta permitida, porque no puede rechazar
+--  ninguna marcacion: solo hace que reenviar la misma foto no la
+--  duplique (sp_registrar_foto usa ON DUPLICATE KEY).
+--
+--  Si una marcacion no tiene fila aqui, es que su foto no llego: la
+--  camara fallo, el celular se quedo sin senal para siempre, o la puso
+--  la administradora a mano. La incidencia dice cual.
+-- =====================================================================
+CREATE TABLE foto_marcacion (
+  marcacion_id BIGINT UNSIGNED NOT NULL PRIMARY KEY,
+  -- Clave del archivo en el almacen, no ruta de disco.
+  ruta         VARCHAR(200) NOT NULL,
+  mini_ruta    VARCHAR(200) NULL,
+  -- Cuando llego la foto. Puede ser bastante despues de la marcacion.
+  recibida_en  DATETIME NOT NULL,
+  -- La foto completa se purga a los 3 meses; la miniatura se queda.
+  -- Distingue "no tiene foto" de "la foto expiro y solo queda la
+  -- miniatura". Es lo unico de esta tabla que se actualiza.
+  purgada      BOOLEAN NOT NULL DEFAULT FALSE,
+  CONSTRAINT fk_foto_marc FOREIGN KEY (marcacion_id) REFERENCES marcacion(id)
 ) ENGINE=InnoDB;
 
 -- =====================================================================

@@ -1080,3 +1080,150 @@ de personas esperando.
 eliminaron `Cargo.java`, `TipoJornada.java` y `MotivoRechazo.java`; entro `TipoIncidencia.java`.
 
 **No hecho:** el generador de Excel, la capa `bd` y la capa `control` siguen vacias.
+
+## [2026-10-06] scaffold | Se retoma en otro ordenador: el entorno reverificado
+
+El proyecto estuvo parado del 2026-09-20 al 2026-10-06 y se retoma **en una máquina
+distinta**. Antes de tocar código se comprobó que las herramientas **se resuelven**, no que
+estén instaladas, como manda `CLAUDE.md` §7. La tabla de §7 quedó reescrita.
+
+**Lo que difiere de la máquina anterior:**
+
+- **MySQL no está instalado.** Ni `mysql.exe`, ni servicio `MySQL80`, ni nada escuchando en
+  el 3306. Los cuatro scripts de `SQL/` **no se pudieron correr**: es el bloqueo de esta
+  sesión y la capa `bd` espera a que se resuelva.
+- Java es **26.0.2.1** (`jdk-26.0.2.1`, no `jdk-26`) y Python **3.14.7** (no 3.13).
+- **Maven suelto sí está** en el PATH. No cambia la regla: se compila con `.\mvnw.cmd`.
+- El PATH del shell está al día; ya no hace falta exportarlo en cada comando.
+
+**Pruebas: 22 de 22 pasan** con `.\mvnw.cmd -B test`, **BUILD SUCCESS**.
+
+**Hallazgo que corrige una afirmación de `PARA-RETOMAR.md` §4.4:** `contextLoads()` **pasó sin
+MySQL instalado**. No es que la base funcione: es que el pool de Hikari se abre de forma
+perezosa y, con la capa `bd` vacía, ningún bean pide una conexión. Hoy las 22 pruebas en verde
+**no dicen nada de la base de datos**. La verificación contra MySQL tendrán que darla las
+pruebas de integración de `bd`.
+
+**Higiene:** aparece `.vscode/settings.json` sin seguimiento en la raíz. No se toca; queda por
+decidir si va al `.gitignore`.
+
+**No hecho:** la base de datos, y por tanto la capa `bd`. Pendiente de decidir cómo se instala
+MySQL en esta máquina.
+
+## [2026-10-06] scaffold | La capa bd: los 17 procedimientos, y el circuito que no pierde horas
+
+**MySQL 8.0.46** lo instaló el usuario; los cuatro scripts se cargaron y se verificaron entrando
+como `asistencia`: 6 tablas, 17 procedimientos, el evento de purga, y las tildes y eñes
+guardadas como UTF-8 real. **Trampa encontrada antes de pisarla:** en PowerShell 5.1,
+`Get-Content … | mysql` —la receta de `PARA-RETOMAR.md`— convierte las tildes en `?` sin
+avisar. Se carga con `cmd /c "mysql … < archivo"`. Anotado en `CLAUDE.md` §7.
+
+**El modelo vio sus primeras filas reales, y encontró un error en el semillero.**
+`CruceModeloContraBaseTest` recalcula en Java las 1 178 celdas que el semillero calculó en
+SQL. **Cinco no cuadraban, y en las cinco tenía razón Java:** los casos raros de
+`03_datos_prueba.sql` insertaban marcaciones sin rehacer su celda —el mismo fallo que los
+conteos MAÑANA/TARDE congelados del Excel del cliente—. Corregido el semillero sin perder
+ningún escenario: **1 180 de 1 180** celdas idénticas carácter por carácter.
+
+**El circuito se escribió primero ingenuo, para verlo fallar.** Con un `@Transactional` a secas:
+
+- **5 de 5 rondas** de 10 envíos simultáneos dejaron la celda mal —una con **más** minutos de
+  los reales—. Es el doble toque del botón.
+- La marcación 512 del día **se perdió** por un error al guardar su celda (`turnos` es
+  `TINYINT`, máximo 255).
+
+Arreglo en [[adr-013-la-transaccion-de-una-marcacion]]: **candado por persona** dentro del
+procedimiento, **`READ COMMITTED`** y **punto de guardado** alrededor de la celda. Las mismas
+pruebas, sin tocarlas: **25 de 25 rondas** correctas y la 512 guardada.
+
+**La misma regla para los textos:** MySQL estricto da error con un texto más largo que su
+columna, y deshace la llamada entera. `Recorte` corta la nota, nunca la marcación, contando
+caracteres de verdad (un emoji son dos unidades en Java y uno en MySQL).
+
+**Dos cambios de columnas en `02_procedimientos.sql`, con el mismo criterio que el cronograma
+diario/semanal:** `sp_registrar_marcacion` devuelve las nueve columnas de una marcación y
+`sp_historial_trabajadora` las mismas que `sp_marcaciones_del_dia`. Resultado: **un mapper por
+concepto**, no uno por procedimiento.
+
+**Lo escrito:** 6 clases `*BD` con los 17 procedimientos, 2 mappers a mano (`MarcacionMapper`,
+`FilaMarcacion`) y 6 records con `DataClassRowMapper`. **46 pruebas, todas pasan**: las 22 de
+antes y 24 nuevas contra MySQL.
+
+**Corregido de paso:** `bd/package-info.java` seguía diciendo que la jornada se recalcula
+«dentro del motor»; [[decisiones]] no listaba ADR-011 ni ADR-012; [[huecos-abiertos]] seguía con
+el 27 y el 28 abiertos, que ADR-012 ya había cerrado.
+
+**Huecos nuevos, 30 a 35** en [[huecos-abiertos]]. Los dos 🔴 bloquean la capa `control`:
+**no hay procedimiento para listar sedes ni el padrón**, y **la foto choca con la
+inmutabilidad de la marcación** (la regla 2 manda guardar antes de procesar la foto, pero la
+ruta se escribe en el `INSERT` y la fila no se edita nunca).
+
+**No hecho:** la capa `control` (fachada de marcación, Excel con Apache POI) y la `vista`.
+
+## [2026-10-06] decision | Hueco 32 cerrado y ADR-014 propuesto: marcar sin esperar
+
+**El usuario confirma las 7 sedes** (Los Olivos, Surco, Miraflores, San Miguel, San Borja,
+Lince, La Molina): coinciden con las del semillero. El formulario real de trabajadoras llegará
+después; mientras, sirven los **98 nombres ficticios** del semillero.
+
+**Hueco 32 cerrado:** `sp_sedes` y `sp_padron`, con `SedesBD` y `TrabajadorasBD.padron`. Ya son
+**19 procedimientos**. El padrón **no devuelve el documento**: alimenta un formulario público
+sin login. Sale con las provisionales marcadas, para que quien escribió su nombre ayer lo toque
+hoy en vez de escribirlo distinto. Y una prueba carga por primera vez el Singleton
+`CatalogoSedes` con datos reales. **49 pruebas, todas pasan.**
+
+**Pedido del usuario:** que marcar sea rápido y que nunca se quede cargando ni sin registro,
+haya o no internet. Respuesta en [[adr-014-marcar-sin-esperar]], **como propuesta**, porque
+cambia tres cosas de [[adr-008-alcance-interfaz-y-cola-sin-senal]]. La idea central: **la
+marcación queda registrada en el celular al tocar el botón, y enviarla es trabajo de fondo.**
+
+- La página abre sin internet (service worker con sedes y padrón guardados).
+- **Dos vistos, como WhatsApp**: ✓ guardada en el celular, ✓✓ recibida. Nunca «error».
+- **Datos y foto por separado**: los datos llegan con una rayita de señal; la foto, después.
+  Eso **resuelve el hueco 33** si se aprueba: la foto a una tabla propia, solo inserción.
+- **Clave de envío** contra el caso más traicionero: el servidor guardó, la respuesta se perdió,
+  el celular reenvía. Sin `UNIQUE` —es una búsqueda bajo el candado de ADR-013—, así que no
+  contradice ADR-012: dos toques siguen siendo dos marcaciones.
+- **La hora la calcula el servidor**: el celular manda cuánto tiempo pasó desde el toque, no
+  qué hora es. Un teléfono con la hora mal puesta deja de importar.
+
+**Dicho sin adornos en el ADR:** una página web no puede salvar una marcación de un celular que
+se rompe antes de enviar, iPhone no envía en segundo plano, y puede borrar los datos de una web
+no instalada tras 7 días sin uso.
+
+**Pendiente:** las cuatro preguntas del final de [[adr-014-marcar-sin-esperar]].
+
+## [2026-10-06] decision | ADR-014 aceptado: la foto en su tabla, la clave de envío construida
+
+**Respuestas del usuario:** foto en su propia tabla, **sí**; pedir que instalen la página en la
+pantalla de inicio, **sí**; dos minutos como frontera de la hora, **sí**; aparato fijo por sede,
+**no** —son demasiadas podólogas, y el teléfono de la sede tiene otros usos—: queda solo para
+excepciones.
+
+**El usuario preguntó si instalar la página en iPhone hace que las pendientes se envíen solas.
+La respuesta fue que no**, y se le dijo antes de pedirle nada a nadie: Safari no tiene
+*Background Sync*, instalada o no. Instalarla sí evita que iPhone borre las pendientes a los 7
+días. Registrado en [[adr-014-marcar-sin-esperar]], con el hueco 36 (¿cuántas usan iPhone?).
+
+**Construida la parte de datos de ADR-014:**
+
+- `marcacion` pierde las tres columnas de foto y gana `clave_envio` (índice **no único**: el
+  reenvío se reconoce bajo el candado de ADR-013, sin ninguna restricción que pueda hacer fallar
+  un `INSERT`). Tabla nueva `foto_marcacion`. **Cierra el hueco 33.**
+- `sp_registrar_marcacion` devuelve la marcación original con `p_repetida` cuando es un
+  reenvío. Nuevo `sp_registrar_foto`, que busca por clave y no por id —el celular puede no
+  conocer el id, que es justo el caso que se protege—. **20 procedimientos, 7 tablas.**
+- **Las consultas del dashboard devuelven las mismas columnas de foto que antes**, leídas de la
+  tabla nueva. Ni `FilaMarcacion` ni su mapper cambiaron: el contrato de columnas aguantó un
+  cambio de esquema sin que Java se enterara.
+- **Un tropiezo útil al recargar:** el semillero borraba una marcación que ahora tenía foto, y
+  la clave foránea lo impidió. Hizo justo lo que debía.
+
+**51 pruebas, todas pasan.** Las nuevas: la foto llega después y reenviarla no la duplica; un
+reenvío con la hora recalculada sigue siendo la misma marcación; **8 reenvíos simultáneos de la
+misma clave dejan una sola marcación**, estable en 5 de 5 corridas; dos toques con claves
+distintas siguen siendo dos marcaciones, como manda ADR-012.
+
+**Pendiente para `control`:** `momento = hora del servidor − segundos transcurridos`, la
+frontera de 2 minutos y qué hacer con una foto de clave inexistente (hueco 37). **Para
+`vista`:** el service worker, la cola en IndexedDB y los dos vistos.

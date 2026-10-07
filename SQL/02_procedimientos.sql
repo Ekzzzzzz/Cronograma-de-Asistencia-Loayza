@@ -39,8 +39,12 @@ DROP PROCEDURE IF EXISTS sp_provisionales;
 DROP PROCEDURE IF EXISTS sp_autenticar_admin;
 DROP PROCEDURE IF EXISTS sp_marcar_acceso_admin;
 DROP PROCEDURE IF EXISTS sp_purgar_fotos;
+DROP PROCEDURE IF EXISTS sp_sedes;
+DROP PROCEDURE IF EXISTS sp_padron;
+DROP PROCEDURE IF EXISTS sp_registrar_foto;
 -- Nombres viejos, por si quedo una base cargada antes de ADR-012.
 DROP PROCEDURE IF EXISTS sp_validar_marcacion;
+-- (los 20 actuales estan arriba; estos son nombres anteriores a ADR-012)
 DROP PROCEDURE IF EXISTS sp_registrar_intento;
 DROP PROCEDURE IF EXISTS sp_intentos_rechazados;
 
@@ -102,10 +106,14 @@ END$$
 --  recibe la lista, arma los turnos y llama a sp_actualizar_jornada.
 --  Las dos llamadas van dentro de la misma transaccion de Spring.
 --
---  p_foto_ruta puede llegar NULL y es un caso NORMAL, no un error: si
---  la camara fallo o la imagen vino rota, la marcacion se guarda igual
---  y la incidencia se anota aparte. La hora trabajada no depende de
---  que la foto saliera bien.
+--  NO RECIBE LA FOTO (ADR-014). La foto llega despues, en otro envio,
+--  y va a foto_marcacion por sp_registrar_foto. Asi la marcacion existe
+--  siempre antes que su foto.
+--
+--  p_clave_envio y p_repetida (ADR-014): si ya hay una marcacion de esta
+--  persona con esta clave, es un REENVIO -el servidor guardo, la
+--  respuesta no llego al celular, el celular volvio a mandar-. No se
+--  inserta otra: se devuelve la que ya existe, con p_repetida = TRUE.
 -- =====================================================================
 CREATE PROCEDURE sp_registrar_marcacion(
     IN  p_trabajadora     SMALLINT UNSIGNED,
@@ -115,41 +123,97 @@ CREATE PROCEDURE sp_registrar_marcacion(
     IN  p_fuente_hora     VARCHAR(12),
     IN  p_momento_recibido DATETIME,
     IN  p_notas           VARCHAR(500),
-    IN  p_foto_ruta       VARCHAR(200),
-    IN  p_foto_mini_ruta  VARCHAR(200),
+    IN  p_clave_envio     CHAR(36),
     IN  p_origen          VARCHAR(16),
     IN  p_corregida_por   SMALLINT UNSIGNED,
     IN  p_motivo          VARCHAR(200),
     OUT p_id              BIGINT UNSIGNED,
-    OUT p_marcaciones_hoy INT
+    OUT p_marcaciones_hoy INT,
+    OUT p_repetida        BOOLEAN
 )
 BEGIN
-    INSERT INTO marcacion (
-        trabajadora_id, sede_id, tipo, momento,
-        fuente_hora, momento_recibido, notas,
-        foto_ruta, foto_mini_ruta,
-        origen, corregida_por, motivo
-    ) VALUES (
-        p_trabajadora, p_sede, p_tipo, p_momento,
-        IFNULL(p_fuente_hora, 'SERVIDOR'), p_momento_recibido, p_notas,
-        p_foto_ruta, p_foto_mini_ruta,
-        IFNULL(p_origen, 'TRABAJADORA'), p_corregida_por, p_motivo
-    );
+    DECLARE v_candado SMALLINT UNSIGNED;
+    DECLARE v_sede    TINYINT UNSIGNED DEFAULT p_sede;
+    DECLARE v_fecha   DATE DEFAULT DATE(p_momento);
 
-    SET p_id = LAST_INSERT_ID();
+    -- -----------------------------------------------------------------
+    --  UN CANDADO POR PERSONA (2026-10-06, ADR-013)
+    -- -----------------------------------------------------------------
+    --  Sin esta linea, dos envios simultaneos de la misma persona -el
+    --  doble toque- leen el dia a la vez, cada uno sin ver la marcacion
+    --  del otro, y el que confirma ultimo PISA la celda del cronograma.
+    --  Medido: en 5 de 5 rondas de 10 envios simultaneos la celda quedo
+    --  mal, a veces con MAS minutos de los reales.
+    --
+    --  FOR UPDATE reserva la fila de esta trabajadora hasta el COMMIT: el
+    --  segundo envio espera aqui unos milisegundos y lee el dia despues.
+    --  Se bloquea la fila de trabajadora, y no la celda, porque esa fila
+    --  SIEMPRE existe; bloquear una celda que aun no existe crearia un
+    --  "gap lock", y dos gap locks no se excluyen entre si.
+    --
+    --  Solo espera la MISMA persona. Las demas no se enteran.
+    --  No rechaza nada: espera.
+    -- -----------------------------------------------------------------
+    SELECT id INTO v_candado
+      FROM trabajadora
+     WHERE id = p_trabajadora
+       FOR UPDATE;
+
+    -- -----------------------------------------------------------------
+    --  ¿ES UN REENVIO? (ADR-014)
+    -- -----------------------------------------------------------------
+    --  Se busca DESPUES del candado: dos reenvios simultaneos de la misma
+    --  clave esperan uno detras del otro, y el segundo encuentra lo que
+    --  inserto el primero. Por eso no hace falta un indice UNIQUE.
+    --
+    --  Si es un reenvio, el dia que se devuelve es el de la marcacion que
+    --  ya existia, no el de los parametros: la hora de un reenvio la
+    --  recalcula el servidor y puede diferir en algun segundo.
+    -- -----------------------------------------------------------------
+    SET p_id = NULL;
+    SET p_repetida = FALSE;
+    IF p_clave_envio IS NOT NULL THEN
+        SELECT id, sede_id, fecha INTO p_id, v_sede, v_fecha
+          FROM marcacion
+         WHERE clave_envio    = p_clave_envio
+           AND trabajadora_id = p_trabajadora
+         ORDER BY id
+         LIMIT 1;
+    END IF;
+
+    IF p_id IS NOT NULL THEN
+        SET p_repetida = TRUE;
+    ELSE
+        INSERT INTO marcacion (
+            trabajadora_id, sede_id, tipo, momento,
+            fuente_hora, momento_recibido, notas, clave_envio,
+            origen, corregida_por, motivo
+        ) VALUES (
+            p_trabajadora, p_sede, p_tipo, p_momento,
+            IFNULL(p_fuente_hora, 'SERVIDOR'), p_momento_recibido, p_notas, p_clave_envio,
+            IFNULL(p_origen, 'TRABAJADORA'), p_corregida_por, p_motivo
+        );
+        SET p_id = LAST_INSERT_ID();
+    END IF;
 
     SELECT COUNT(*) INTO p_marcaciones_hoy
       FROM marcacion
      WHERE trabajadora_id = p_trabajadora
-       AND sede_id        = p_sede
-       AND fecha          = DATE(p_momento);
+       AND sede_id        = v_sede
+       AND fecha          = v_fecha;
 
     -- La materia prima del Composite: el dia entero, en orden.
-    SELECT id, tipo, momento, fuente_hora, momento_recibido, origen
+    --
+    -- Trae las nueve columnas de una marcacion, aunque tres se sepan ya
+    -- por los parametros: es el CONTRATO DE COLUMNAS de la capa bd (ver
+    -- MarcacionMapper). Todo procedimiento que devuelve marcaciones trae
+    -- las mismas nueve, y asi Java las traduce con un solo mapper.
+    SELECT id, trabajadora_id, sede_id, tipo, momento,
+           fuente_hora, momento_recibido, origen, notas
       FROM marcacion
      WHERE trabajadora_id = p_trabajadora
-       AND sede_id        = p_sede
-       AND fecha          = DATE(p_momento)
+       AND sede_id        = v_sede
+       AND fecha          = v_fecha
      ORDER BY momento, id;
 END$$
 
@@ -489,9 +553,11 @@ BEGIN
         m.momento_recibido,
         TIMESTAMPDIFF(MINUTE, m.momento, m.momento_recibido) AS desfase_minutos,
         m.notas,
-        m.foto_mini_ruta,
-        m.foto_purgada,
-        (m.foto_ruta IS NULL)   AS sin_foto,
+        -- La foto vive en foto_marcacion desde ADR-014; las columnas
+        -- que salen son las MISMAS de antes, y Java no se entera.
+        f.mini_ruta             AS foto_mini_ruta,
+        IFNULL(f.purgada, FALSE) AS foto_purgada,
+        (f.marcacion_id IS NULL) AS sin_foto,
         m.origen,
         a.nombre                AS corregida_por,
         m.motivo,
@@ -500,6 +566,7 @@ BEGIN
       JOIN trabajadora t  ON t.id = m.trabajadora_id
       JOIN sede s         ON s.id = m.sede_id
       LEFT JOIN administrador a ON a.id = m.corregida_por
+      LEFT JOIN foto_marcacion f ON f.marcacion_id = m.id
      WHERE m.fecha = p_fecha
        AND (p_sede IS NULL OR m.sede_id = p_sede)
      ORDER BY m.momento, m.id;
@@ -512,6 +579,11 @@ END$$
 --  LAS SEDES. Es la consulta que contesta "donde estuvo esta semana", y
 --  la unica del sistema que no filtra por sede: por eso marcacion tiene
 --  el indice idx_trabajadora aparte del del cronograma.
+--
+--  Devuelve EXACTAMENTE LAS MISMAS COLUMNAS que sp_marcaciones_del_dia,
+--  a proposito (2026-10-06): las dos son "una lista de marcaciones con lo
+--  necesario para ensenarlas", y asi Java las lee con un solo mapper
+--  (FilaMarcacion). Es la misma idea que cronograma diario y semanal.
 -- =====================================================================
 CREATE PROCEDURE sp_historial_trabajadora(
     IN p_trabajadora SMALLINT UNSIGNED,
@@ -521,19 +593,31 @@ CREATE PROCEDURE sp_historial_trabajadora(
 BEGIN
     SELECT
         m.id,
-        m.fecha,
+        m.trabajadora_id,
+        t.nombre                AS trabajadora,
+        t.provisional,
         m.sede_id,
-        s.nombre  AS sede,
+        s.nombre                AS sede,
         m.tipo,
         m.momento,
         m.fuente_hora,
         m.momento_recibido,
-        m.origen,
+        TIMESTAMPDIFF(MINUTE, m.momento, m.momento_recibido) AS desfase_minutos,
         m.notas,
-        m.foto_mini_ruta,
-        m.foto_purgada
+        -- La foto vive en foto_marcacion desde ADR-014; las columnas
+        -- que salen son las MISMAS de antes, y Java no se entera.
+        f.mini_ruta             AS foto_mini_ruta,
+        IFNULL(f.purgada, FALSE) AS foto_purgada,
+        (f.marcacion_id IS NULL) AS sin_foto,
+        m.origen,
+        a.nombre                AS corregida_por,
+        m.motivo,
+        (SELECT COUNT(*) FROM incidencia i WHERE i.marcacion_id = m.id) AS incidencias
       FROM marcacion m
-      JOIN sede s ON s.id = m.sede_id
+      JOIN trabajadora t  ON t.id = m.trabajadora_id
+      JOIN sede s         ON s.id = m.sede_id
+      LEFT JOIN administrador a ON a.id = m.corregida_por
+      LEFT JOIN foto_marcacion f ON f.marcacion_id = m.id
      WHERE m.trabajadora_id = p_trabajadora
        AND m.fecha BETWEEN p_desde AND p_hasta
      ORDER BY m.momento, m.id;
@@ -649,13 +733,102 @@ CREATE PROCEDURE sp_purgar_fotos(
     OUT p_afectadas  INT
 )
 BEGIN
-    UPDATE marcacion
-       SET foto_purgada = TRUE
-     WHERE foto_purgada = FALSE
-       AND foto_ruta IS NOT NULL
-       AND fecha < CURDATE() - INTERVAL p_dias DAY;
+    -- Desde ADR-014 la bandera vive en foto_marcacion. La antiguedad se
+    -- sigue contando desde el dia de la MARCACION, no desde que llego la
+    -- foto: lo que se conserva 3 meses es la evidencia de una jornada.
+    UPDATE foto_marcacion f
+      JOIN marcacion m ON m.id = f.marcacion_id
+       SET f.purgada = TRUE
+     WHERE f.purgada = FALSE
+       AND m.fecha < CURDATE() - INTERVAL p_dias DAY;
 
     SET p_afectadas = ROW_COUNT();
+END$$
+
+-- =====================================================================
+--  20. sp_registrar_foto                          (ADR-014, 2026-10-06)
+-- ---------------------------------------------------------------------
+--  La foto de una marcacion que YA se guardo. Llega en un envio aparte,
+--  despues, y se identifica por la CLAVE DE ENVIO -no por el id-, porque
+--  el celular puede no haber recibido nunca el id: es justo el caso en
+--  que la respuesta de la marcacion se perdio.
+--
+--  Reenviar la misma foto no la duplica: ON DUPLICATE KEY no hace nada.
+--
+--  p_marcacion sale NULL si no hay ninguna marcacion con esa clave. No
+--  deberia pasar -el celular manda la foto solo despues del ✓✓-, y si
+--  pasa NO es un error de la trabajadora: la capa control decide.
+-- =====================================================================
+CREATE PROCEDURE sp_registrar_foto(
+    IN  p_clave_envio CHAR(36),
+    IN  p_ruta        VARCHAR(200),
+    IN  p_mini_ruta   VARCHAR(200),
+    OUT p_marcacion   BIGINT UNSIGNED
+)
+BEGIN
+    SET p_marcacion = NULL;
+
+    SELECT id INTO p_marcacion
+      FROM marcacion
+     WHERE clave_envio = p_clave_envio
+     ORDER BY id
+     LIMIT 1;
+
+    IF p_marcacion IS NOT NULL THEN
+        INSERT INTO foto_marcacion (marcacion_id, ruta, mini_ruta, recibida_en)
+        VALUES (p_marcacion, p_ruta, p_mini_ruta, NOW())
+        ON DUPLICATE KEY UPDATE marcacion_id = marcacion_id;
+    END IF;
+END$$
+
+-- =====================================================================
+--  18. sp_sedes                                   (anadido 2026-10-06)
+-- ---------------------------------------------------------------------
+--  Las sedes, para el desplegable y para cargar el Singleton
+--  CatalogoSedes al arrancar. Faltaba: con los 17 procedimientos
+--  originales el catalogo no tenia de donde cargarse (hueco 32).
+--
+--  Devuelve tambien las inactivas: el catalogo las necesita para pintar
+--  marcaciones historicas de una sede que ya cerro. Quien filtra para
+--  el desplegable es Java (CatalogoSedes.activas()).
+--
+--  Por nombre y no por id: es el orden en que una persona las busca.
+-- =====================================================================
+CREATE PROCEDURE sp_sedes()
+BEGIN
+    SELECT id, nombre, plus_code, latitud, longitud, activa
+      FROM sede
+     ORDER BY nombre;
+END$$
+
+-- =====================================================================
+--  19. sp_padron                                  (anadido 2026-10-06)
+-- ---------------------------------------------------------------------
+--  Los nombres para la pantalla "¿Quien eres?" del formulario de
+--  marcacion. Faltaba (hueco 32).
+--
+--  ESTE PROCEDIMIENTO ALIMENTA UN FORMULARIO PUBLICO, SIN LOGIN. Por eso
+--  devuelve lo minimo para que una persona se reconozca: id, nombre y
+--  sede. NUNCA el documento: cualquiera con el enlace veria la lista.
+--
+--  p_sede = una sede: solo las de esa sede (la rejilla de ADR-008, de 5
+--           a 18 caras en vez de 140).
+--  p_sede = NULL: todas. Lo necesita quien cubre otra sede, que no esta
+--           en la rejilla de esa sede, y lo necesita el telefono para
+--           guardar el padron y poder marcar sin senal (ADR-014).
+--
+--  Las provisionales SALEN, marcadas: quien escribio su nombre ayer
+--  tiene que poder tocarlo hoy en vez de escribirlo otra vez distinto.
+-- =====================================================================
+CREATE PROCEDURE sp_padron(
+    IN p_sede TINYINT UNSIGNED
+)
+BEGIN
+    SELECT id, nombre, sede_habitual, provisional
+      FROM trabajadora
+     WHERE activa = TRUE
+       AND (p_sede IS NULL OR sede_habitual = p_sede)
+     ORDER BY nombre;
 END$$
 
 DELIMITER ;

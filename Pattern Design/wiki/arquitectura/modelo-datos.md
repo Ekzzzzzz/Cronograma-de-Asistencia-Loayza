@@ -5,7 +5,7 @@ estado: estable
 fuentes:
   - docs/Cronograma_Ejemplo.xlsx
   - decisiones del usuario (2026-09-06)
-actualizado: 2026-09-20
+actualizado: 2026-10-06
 tags: [arquitectura, base-de-datos, mysql, rendimiento]
 ---
 
@@ -411,8 +411,35 @@ segundos medidos, y Java los compara contra `application.yml`. Así los dos núm
 solo sitio. Es coherente con la regla de [[adr-010-sin-rechazos-oracle-y-nombre-libre]]: los
 procedimientos cuentan y guardan, quien decide es el modelo.
 
+### 4. «La misma transacción» no bastaba (2026-10-06)
+
+La resolución de la tensión 1 decía que las dos llamadas van «dentro de la misma transacción
+de Spring, así que la atomicidad se mantiene». **Es cierto, y precisamente por eso era un
+problema:** con atomicidad pura, un fallo al guardar la celda deshacía también la marcación, y
+dos envíos simultáneos de la misma persona se pisaban la celda. Las dos cosas se midieron
+contra MySQL antes de arreglarlas. Detalle y cifras en
+[[adr-013-la-transaccion-de-una-marcacion]]. Lo que cambia en esta página:
+
+- `sp_registrar_marcacion` **empieza con un candado sobre la fila de la trabajadora**
+  (`SELECT … FOR UPDATE`) y devuelve el día con las **nueve columnas** de una marcación.
+- `sp_historial_trabajadora` devuelve **las mismas columnas que `sp_marcaciones_del_dia`**:
+  un solo mapper en Java para las dos.
+- `jornada_diaria.turnos` (`TINYINT`, máximo 255) es un tope escondido en un sistema sin topes.
+  Abierto como hueco 30 de [[huecos-abiertos]].
+
+### 5. La foto sale de `marcacion` (2026-10-06)
+
+Esta página describe `foto_ruta`, `foto_mini_ruta` y `foto_purgada` como columnas de
+`marcacion`. **Ya no lo son.** Desde [[adr-014-marcar-sin-esperar]] la foto vive en la tabla
+`foto_marcacion` —una fila por marcación, con la marcación como clave primaria— porque llega
+**después**, en un envío aparte, y ponerla tenía que ser insertar, no editar una marcación.
+`marcacion` gana `clave_envio` (UUID del toque, índice **no único**) para reconocer reenvíos.
+Las consultas del dashboard devuelven las mismas columnas de foto que antes, leídas de la
+tabla nueva. Son ya **7 tablas y 20 procedimientos**.
+
 ## Enlaces
 
+[[adr-014-marcar-sin-esperar]] · [[adr-013-la-transaccion-de-una-marcacion]] ·
 [[adr-002-arquitectura-produccion]] · [[adr-011-jpa-o-sql-a-mano]] · [[marcacion-multiple]] ·
 [[formato-cronograma-excel]] · [[cuatro-capas]] · [[patron-observer]] · [[patron-composite]] ·
 [[estructura-repositorio]]

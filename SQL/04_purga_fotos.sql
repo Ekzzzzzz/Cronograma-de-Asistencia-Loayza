@@ -17,7 +17,7 @@
 --  QUE HACE ESTE ARCHIVO Y QUE NO
 --  ------------------------------
 --  MySQL no guarda las imagenes, solo la clave del blob. Asi que esto
---  levanta la bandera foto_purgada y nada mas; el borrado del archivo
+--  levanta la bandera foto_marcacion.purgada y nada mas; el borrado del archivo
 --  real lo hace Java leyendo lo que esto marco. Separarlo tiene una
 --  ventaja concreta: si el borrado del blob falla -la nube no responde,
 --  la credencial caduco- la bandera ya esta puesta y el proceso se
@@ -76,7 +76,7 @@ DELIMITER ;
 --
 --  Para saber si corrio hay dos sitios sin inventar nada:
 --    - last_executed de la consulta de abajo, que lo lleva el motor.
---    - SELECT COUNT(*) FROM marcacion WHERE foto_purgada, que dice
+--    - SELECT COUNT(*) FROM foto_marcacion WHERE purgada, que dice
 --      cuanto lleva purgado en total.
 -- ---------------------------------------------------------------------
 SELECT @@event_scheduler AS planificador;

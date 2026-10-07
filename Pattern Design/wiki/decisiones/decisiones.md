@@ -2,7 +2,7 @@
 titulo: Decisiones
 tipo: decision
 estado: estable
-actualizado: 2026-09-06
+actualizado: 2026-10-06
 tags: [adr, indice]
 ---
 
@@ -23,6 +23,10 @@ de ser una pregunta abierta en [[huecos-abiertos]].
 | [[adr-008-alcance-interfaz-y-cola-sin-senal]] | Sin reconocimiento facial ni GPS; una administradora; arranque en blanco; cola sin señal con doble hora y tope de 2 h; Thymeleaf con HTMX | aceptada | 2026-09-07 |
 | [[adr-009-estructura-y-dos-patrones-que-vuelven]] | Bridge y Command vuelven por la migración de nube y la cola; estructura de `MVC` y `SQL`; paquetes con el nombre de las capas; plan comprimido a cuatro semanas | aceptada | 2026-09-07 |
 | [[adr-010-sin-rechazos-oracle-y-nombre-libre]] | Ninguna marcación se rechaza por su secuencia; nombre libre con trabajadora provisional; cargo fuera de la plantilla; exportación diaria; ráfaga de 80; Oracle Always Free como plataforma | aceptada | 2026-09-20 |
+| [[adr-011-jpa-o-sql-a-mano]] | Sin JPA: el SQL de `SQL/` es la única fuente de verdad del esquema; `SimpleJdbcCall` y `RowMapper` en la capa `bd` | aceptada | 2026-09-20 |
+| [[adr-012-sin-cargos-y-sin-rechazos]] | Fuera cargo y tipo de jornada; caen el tope de 12, el cooldown y la cola vencida; `intento_rechazado` pasa a `incidencia` | aceptada | 2026-09-20 |
+| [[adr-013-la-transaccion-de-una-marcacion]] | Candado por persona, `READ COMMITTED` y punto de guardado alrededor de la celda; recorte de textos al tamaño de su columna | aceptada | 2026-10-06 |
+| [[adr-014-marcar-sin-esperar]] | El celular guarda primero y envía después; página que abre sin internet; datos y foto por separado; clave de envío contra duplicados; hora calculada por el servidor; sin aparato fijo por sede | aceptada | 2026-10-06 |
 
 ## Pendientes de decidir
 

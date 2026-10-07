@@ -79,6 +79,8 @@ De los siete descartados, solo State tiene página: los otros seis viven en
 | [[adr-010-sin-rechazos-oracle-y-nombre-libre]] | El sistema deja de rechazar marcaciones, se puede escribir el nombre, y la plataforma pasa a ser Oracle. |
 | [[adr-011-jpa-o-sql-a-mano]] | Por qué no se usan `@Entity` ni `ddl-auto`: el SQL es un entregable calificado y es la única fuente de verdad del esquema. |
 | [[adr-012-sin-cargos-y-sin-rechazos]] | Fuera cargo y tipo de jornada; el sistema deja de rechazar **cualquier** marcacion; exportacion diaria y semanal verificadas. |
+| [[adr-013-la-transaccion-de-una-marcacion]] | Candado por persona, `READ COMMITTED` y punto de guardado: la celda puede perderse, la marcación nunca. Con las mediciones del antes y el después. |
+| [[adr-014-marcar-sin-esperar]] | El celular guarda la marcación al tocar y la envía por detrás: abre sin internet, dos vistos como WhatsApp, foto en su propia tabla, nunca entra dos veces. Aceptada; la parte de datos ya construida. |
 
 ## Fuentes
 

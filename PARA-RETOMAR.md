@@ -41,10 +41,10 @@ MVC/                              Spring Boot 4.1.1 · Java 25 · Maven Wrapper
 │  ├─ modelo/      ✅ 14 clases, COMPLETO y probado (Composite + Singleton)
 │  ├─ vista/       ❌ solo package-info.java
 │  ├─ control/     ❌ solo package-info.java
-│  └─ bd/          ❌ solo package-info.java
-└─ src/test/       ✅ 22 pruebas, todas pasan
+│  └─ bd/          ✅ los 20 procedimientos, circuito de marcación cerrado (ADR-013, 2026-10-06)
+└─ src/test/       ✅ 51 pruebas, todas pasan (22 del modelo + 29 de bd contra MySQL)
 
-SQL/               ✅ COMPLETO: 6 tablas, 17 procedimientos, evento de purga, semillero
+SQL/               ✅ COMPLETO: 7 tablas, 20 procedimientos, evento de purga, semillero
 ```
 
 **Compila y las pruebas pasan.** Verificar con:
@@ -56,8 +56,8 @@ cd MVC && ./mvnw -B test        # Windows: .\mvnw.cmd -B test
 ### Lo que NO existe todavía
 
 - Ninguna pantalla. Ni una plantilla Thymeleaf, ni un `@Controller`.
-- Ningún `RowMapper`: el modelo Java **nunca ha visto una fila real** de MySQL.
 - El generador de Excel (`.xlsx`). Falta la dependencia de Apache POI.
+- Los procedimientos para listar sedes y el padrón (hueco 32 del wiki).
 - El sellado de la foto, el almacén de fotos, la cola sin señal.
 
 ## 4. Puesta en marcha en un ordenador nuevo
@@ -77,20 +77,22 @@ cd MVC && ./mvnw -B test        # Windows: .\mvnw.cmd -B test
 En orden, como `root` y con la contraseña **de esa máquina**:
 
 ```bash
-mysql -u root -p < SQL/01_esquema.sql          # base, usuario de la app y 6 tablas
+mysql -u root -p < SQL/01_esquema.sql          # base, usuario de la app y 7 tablas
 mysql -u root -p asistencia_loayza < SQL/02_procedimientos.sql
 mysql -u root -p asistencia_loayza < SQL/03_datos_prueba.sql
 mysql -u root -p asistencia_loayza < SQL/04_purga_fotos.sql
 ```
 
-El tercero tarda ~25 s: genera 99 trabajadoras y ~3 900 marcaciones. Imprime un resumen al
+El tercero tarda entre 5 y 25 s según la máquina: genera 99 trabajadoras y ~3 900 marcaciones. Imprime un resumen al
 final; si sale, fue bien.
 
-> En Windows, pasar el archivo por tubería va mejor que con `<`, y conviene forzar el juego de
-> caracteres para que las tildes no se rompan:
+> **En Windows PowerShell 5.1 NO uses `Get-Content … | mysql`**: con `$OutputEncoding` en
+> `us-ascii`, convierte cada tilde y cada eñe en `?` sin dar ningún error (comprobado el
+> 2026-10-06). Pásale el archivo a través de `cmd`, que lo entrega byte a byte:
 > ```powershell
-> Get-Content SQL\01_esquema.sql -Raw -Encoding UTF8 |
->   & "C:\Program Files\MySQL\MySQL Server 8.0\bin\mysql.exe" -u root -p --default-character-set=utf8mb4
+> $env:Path += ';C:\Program Files\MySQL\MySQL Server 8.0\bin'
+> cmd /c "mysql -u root -p --default-character-set=utf8mb4 < SQL\01_esquema.sql"
+> cmd /c "mysql -u root -p --default-character-set=utf8mb4 asistencia_loayza < SQL\02_procedimientos.sql"
 > ```
 
 ### 4.3 Credenciales
@@ -111,8 +113,10 @@ propósito; la del servidor irá por variables de entorno y nunca a un archivo.
 cd MVC && ./mvnw -B test
 ```
 
-Tienen que pasar **22 pruebas**. Las 21 del modelo no necesitan MySQL; `contextLoads()` sí, así
-que si falla solo esa, el problema es la base de datos.
+Tienen que pasar **51 pruebas**. Las del paquete `modelo` no necesitan MySQL; las 29 de `bd`
+sí (son `@JdbcTest` contra la base real), así que **si fallan solo las de `bd`, el problema es
+la base de datos**. Ojo: `contextLoads()` **no** sirve para eso — pasa incluso sin MySQL
+instalado, porque el pool de conexiones no abre ninguna al arrancar.
 
 ## 5. Las cinco reglas que no se pueden romper
 
@@ -162,10 +166,10 @@ aparecen en alguna página del wiki, esa página está desactualizada.
 
 En este orden. El primero es el que desbloquea todo lo demás.
 
-1. **La capa `bd`.** `RowMapper` y `SimpleJdbcCall` para los 17 procedimientos. Es donde el
-   modelo Java ve su primera fila real. Cerrar el circuito
-   `sp_registrar_marcacion` → `Jornada` → `sp_actualizar_jornada` dentro de un
-   `@Transactional`, y probarlo contra MySQL.
+1. ~~**La capa `bd`.**~~ **Hecha el 2026-10-06.** Ver ADR-013 y la entrada de esa fecha en
+   `wiki/log.md`. Antes de la capa `control` hay que resolver los huecos 32 (no hay
+   procedimiento para listar sedes ni el padrón) y 33 (la foto y la inmutabilidad de la
+   marcación) de `wiki/sintesis/huecos-abiertos.md`.
 2. **La capa `control`.** La fachada «registrar marcación» completa, y el generador de Excel
    con Apache POI — **diario y semanal, por sede**. Los dos procedimientos devuelven las mismas
    columnas a propósito para que el generador sea uno solo.
