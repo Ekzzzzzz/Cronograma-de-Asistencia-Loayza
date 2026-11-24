@@ -5,11 +5,15 @@ numero: 002
 estado_adr: aceptada
 tags: [adr, ingesta, pwa, antifraude]
 creado: 2026-09-04
-actualizado: 2026-09-04
+actualizado: 2026-11-23
 reemplaza: "versión anterior de este ADR, basada en ingesta desde WhatsApp"
 ---
 
 # ADR-002 — Canal de marcación (PWA propia, se descarta WhatsApp)
+
+> [!warning] Reemplazado en parte por [[adr-007-flujo-consolidado-v1]] (2026-11-23)
+> El flujo vigente de la v1 está en el ADR-007, que manda sobre este documento donde
+> difieran. Su tabla «Qué reemplaza este ADR» dice qué partes de éste siguen en pie.
 
 ## Contexto
 

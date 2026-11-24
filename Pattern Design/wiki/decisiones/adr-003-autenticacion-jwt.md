@@ -5,10 +5,14 @@ numero: 003
 estado_adr: aceptada
 tags: [adr, seguridad, jwt, sesiones]
 creado: 2026-09-04
-actualizado: 2026-09-04
+actualizado: 2026-11-23
 ---
 
 # ADR-003 — Autenticación y sesiones (Spring Security + JWT)
+
+> [!warning] Reemplazado en parte por [[adr-007-flujo-consolidado-v1]] (2026-11-23)
+> El flujo vigente de la v1 está en el ADR-007, que manda sobre este documento donde
+> difieran. Su tabla «Qué reemplaza este ADR» dice qué partes de éste siguen en pie.
 
 ## Contexto
 

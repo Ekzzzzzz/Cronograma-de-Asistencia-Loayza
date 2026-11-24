@@ -2,7 +2,7 @@
 tipo: moc
 titulo: Índice de la wiki
 creado: 2026-09-04
-actualizado: 2026-09-04
+actualizado: 2026-11-23
 estado: activo
 ---
 
@@ -86,11 +86,13 @@ Muestras del negocio (en `docs/`, analizadas en `wiki/dominio/`):
 
 | ADR | Título | Estado |
 |---|---|---|
-| [[adr-001-stack-y-arquitectura]] | PWA en Vercel + backend Spring Boot + base de datos; Excel sólo como exportación. | **aceptada** |
-| [[adr-002-canal-de-marcacion]] | Canal propio: las trabajadoras marcan desde una PWA con la cámara. Se descarta WhatsApp. | **aceptada** |
-| [[adr-003-autenticacion-jwt]] | Spring Security + JWT, sesión persistente atada al dispositivo, dos roles, enrolamiento presencial. | **aceptada** |
+| [[adr-001-stack-y-arquitectura]] | PWA en Vercel + backend Spring Boot + base de datos; Excel sólo como exportación. | aceptada, en parte reemplazada por el 007 |
+| [[adr-002-canal-de-marcacion]] | Canal propio: las trabajadoras marcan desde una PWA con la cámara. Se descarta WhatsApp. | aceptada, en parte reemplazada por el 007 |
+| [[adr-003-autenticacion-jwt]] | Spring Security + JWT, sesión persistente atada al dispositivo, dos roles, enrolamiento presencial. | aceptada, en parte reemplazada por el 007 |
 | [[adr-004-llenado-del-cronograma]] | Sin programación de turnos el sistema llena solo el 81,7 % de la rejilla; el resto va a una cola de dos opciones. | propuesta |
 | [[adr-005-interfaz-de-marcacion]] | Cuatro pantallas, tres toques y cero teclado. Incluye [prototipo navegable](https://claude.ai/code/artifact/8ed44102-37c0-4620-8019-d4b56f991b78). | propuesta |
+| [[adr-006-acceso-sin-sesion]] | Enlace global sin sesión para las trabajadoras. | aceptada en parte por el 007 |
+| [[adr-007-flujo-consolidado-v1]] | **Flujo de la v1 — manda sobre 001–006**: sede → nombre → foto → enviar; QR de dispositivo; panel con link secreto + login; un despliegue en Render + Neon; 13 patrones por capa. | **aceptada** |
 | [[decisiones-moc]] | Mapa de decisiones | — |
 
 ## Consultas archivadas

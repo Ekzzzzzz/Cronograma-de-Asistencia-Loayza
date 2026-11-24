@@ -2,8 +2,8 @@
 tipo: moc
 titulo: Síntesis — estado del diseño
 creado: 2026-09-04
-actualizado: 2026-09-04
-estado: borrador
+actualizado: 2026-11-23
+estado: activo
 ---
 
 # Síntesis — estado del diseño
@@ -14,10 +14,21 @@ patrones?»** Se reescribe con cada decisión aceptada; no es un histórico (par
 
 ## Estado actual
 
-**Fase: arquitectura y dominio decididos, patrones pendientes.** Tres ADR **aceptados**
-([[adr-001-stack-y-arquitectura]], [[adr-002-canal-de-marcacion]],
-[[adr-003-autenticacion-jwt]]) y uno propuesto ([[adr-004-llenado-del-cronograma]]). No hay
-código todavía.
+> [!important] Estado al 2026-11-23: flujo consolidado, implementación de la v1 en curso
+> **[[adr-007-flujo-consolidado-v1]] es la fuente de verdad** y manda sobre los ADR 001–006.
+> En resumen:
+> - **Trabajadora**: enlace global; sede → nombre (lista con buscador y «+») → foto →
+>   ENVIAR ENTRADA/SALIDA. Sin comparación facial: la foto es evidencia.
+> - **Celulares**: activación por QR con llave WebCrypto no exportable, en modo señal.
+> - **Administradora**: link secreto + usuario y contraseña; sólo ella ve las fotos.
+> - **Despliegue**: un solo servicio Spring Boot en Render + PostgreSQL en Neon.
+> - **Patrones**: 13, repartidos en las cuatro capas que exige PC-3, más *stored
+>   procedures*, ISP y ODS 8.
+>
+> Entrega y exposición: **2026-11-24**. Lo de abajo es el razonamiento previo y se
+> conserva como contexto.
+
+**Fase anterior (2026-09-05): arquitectura y dominio decididos, patrones pendientes.**
 
 **Lo que el sistema puede prometer, medido:** llena solo el **81,7 %** de la rejilla
 semanal. El resto son ~26 decisiones de dos opciones por semana y sede. No detecta

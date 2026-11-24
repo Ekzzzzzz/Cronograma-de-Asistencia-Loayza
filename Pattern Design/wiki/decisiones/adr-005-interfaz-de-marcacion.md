@@ -5,10 +5,14 @@ numero: 005
 estado_adr: propuesta
 tags: [adr, pwa, interfaz, usabilidad]
 creado: 2026-09-05
-actualizado: 2026-09-05
+actualizado: 2026-11-23
 ---
 
 # ADR-005 — Interfaz de la app de marcación
+
+> [!warning] Reemplazado en parte por [[adr-007-flujo-consolidado-v1]] (2026-11-23)
+> El flujo vigente de la v1 está en el ADR-007, que manda sobre este documento donde
+> difieran. Su tabla «Qué reemplaza este ADR» dice qué partes de éste siguen en pie.
 
 ## Contexto
 

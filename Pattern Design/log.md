@@ -325,3 +325,36 @@ ISP de S01–S04; ADR de arquitectura de cuatro capas **antes** de escribir cód
 - **Prototipo actualizado** al flujo nuevo.
 - **Pendiente:** celular por sede; regla de conteo MAÑANA/TARDE con dos sedes; y las
   decisiones abiertas de PC-3 (Singleton, ODS, cuatro capas).
+
+## [2026-11-23] lint | Análisis completo del proyecto
+
+- Revisión de toda la bóveda a pedido del usuario. Hallazgos principales: no hay código;
+  ADR-006 contradice decisiones aceptadas sin marcarlas (ADR-001 contingencia, ADR-002,
+  ADR-003); ADR-006 faltaba en [[index]]; [[sintesis]] y [[decisiones-moc]] seguían
+  diciendo «bloqueado hasta ingerir S06–S13»; datos viejos en [[antifraude]] (vectores 5 y
+  7) y en [[antipatrones]] («2 marcaciones/día»).
+- Riesgos señalados: sin reconocimiento de vida, un rostro mostrado en otra pantalla pasa
+  todas las verificaciones; un enlace global abierto expone el padrón; la rúbrica de 4 capas
+  sigue sin mapear.
+- Inconsistencia de datos abierta: [[sedes]] dice 3–15 podólogas por sede, pero el Excel
+  de Los Olivos lista 21–25.
+
+## [2026-11-23] decision | ADR-007 — flujo consolidado de la v1
+
+- El usuario fija las condiciones finales: **entrega y exposición el 2026-11-24** (8 min),
+  producción real, **sin reconocimiento facial**, equipo de dos (usuario + agente), datos
+  de prueba.
+- Se crea [[adr-007-flujo-consolidado-v1]], que **manda sobre 001–006**. Cada ADR anterior
+  lleva ahora un aviso al principio.
+- Flujo: **sede → nombre → foto → ENVIAR ENTRADA/SALIDA**. El nombre se elige de una lista
+  con buscador que filtra al escribir, más un botón «+» para registrarse (queda POR
+  VALIDAR). El celular recuerda sede y nombre.
+- Celulares: QR de activación + llave WebCrypto no exportable, **modo señal** (si no está
+  activado, marca igual y va a revisión). Una PWA no puede leer el IMEI.
+- Administradora: link secreto + usuario y contraseña. **JWT sale**: con un solo despliegue
+  basta una sesión con cookie `HttpOnly`. 2FA pasa a la v2.
+- **Vercel sale**: un solo despliegue Spring Boot en **Render** (de pago, no se suspende) +
+  PostgreSQL en **Neon**. Contingencia: túnel de Cloudflare desde la laptop y vídeo grabado.
+- 13 patrones asignados a las cuatro capas de PC-3, más *stored procedures*, ISP y ODS 8.
+  Se descartan Abstract Factory y Adapter, con su argumento.
+- **Pendiente:** implementar la v1; crear cuentas en Render y Neon.

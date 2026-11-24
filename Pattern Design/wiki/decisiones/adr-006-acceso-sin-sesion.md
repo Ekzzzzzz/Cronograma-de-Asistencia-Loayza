@@ -5,11 +5,15 @@ numero: 006
 estado_adr: propuesta
 tags: [adr, acceso, identidad, antifraude]
 creado: 2026-09-05
-actualizado: 2026-09-05
+actualizado: 2026-11-23
 reemplaza: "el enrolamiento con sesión por dispositivo de [[adr-003-autenticacion-jwt]], sólo para el rol TRABAJADORA"
 ---
 
 # ADR-006 — Enlace global sin sesión e identificación por rostro
+
+> [!warning] Reemplazado en parte por [[adr-007-flujo-consolidado-v1]] (2026-11-23)
+> El flujo vigente de la v1 está en el ADR-007, que manda sobre este documento donde
+> difieran. Su tabla «Qué reemplaza este ADR» dice qué partes de éste siguen en pie.
 
 ## Contexto
 
